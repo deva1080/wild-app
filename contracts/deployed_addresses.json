@@ -1,0 +1,9 @@
+{
+  "GameCreditsModule#GameCredits": "0x4c9ec723EC50dEEC40990a7765B1514F01754F32",
+  "TreasuryModule#TreasuryTest": "0x6B622668Abfca5074ed46FaEc38133A742890CA7",
+  "GameRouterModule#GameRouter": "0xd62208C58C10C6B99c5b18cA942D81e68Df565F4",
+  "GamesModule#CrashGame": "0xc146A490C90934A8CcC9541c072612E7f08A0a59",
+  "GamesModule#FlipGame": "0xBDE14196b45A989C72D0803437677430972ED04e",
+  "GamesModule#RPSGame": "0xa6164D85bC0408d9df0289E475F979Aa7c8f244A",
+  "GamesModule#WheelGame": "0xF2A6d16Cac939a53Ce4aDa62B013a59Bb8db7184"
+}

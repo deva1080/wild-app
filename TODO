@@ -1,0 +1,1 @@
+- Implementar feed en vivo de "Recent Plays" en el sidebar interceptando los eventos `BetSettled` (y específicos de cada juego) directo desde las direcciones de cada contrato individual, para poder mostrar información detallada de los resultados (Opción 2).
