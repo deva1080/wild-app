@@ -22,6 +22,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setMounted(true)
   }, [])
 
+  if (!mounted) return null
+
   return (
     <PrivyProvider
       appId={privyAppId}
@@ -42,7 +44,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <WagmiProvider config={config}>
           <GlobalEventListeners />
           <TxModeProvider>
-            {mounted ? children : null}
+            {children}
           </TxModeProvider>
         </WagmiProvider>
       </QueryClientProvider>
