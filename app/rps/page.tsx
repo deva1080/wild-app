@@ -76,7 +76,10 @@ export default function RPSPage() {
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
 
-  const pendingBetId = contractPendingBet && contractPendingBet !== BigInt(0) ? contractPendingBet : null;
+  const pendingBetId =
+    typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
+      ? contractPendingBet
+      : null;
   const balStr = wildBalance ? Number(formatEther(wildBalance as bigint)).toFixed(2) : '0.00';
 
   const resultPhase  = result.state?.phase ?? 'idle';
@@ -90,7 +93,10 @@ export default function RPSPage() {
   const isLoss   = isResult && (resultPayout === undefined || resultPayout === BigInt(0));
 
   // Outcome: 0=Rock 1=Paper 2=Scissors 3=tie(same as player)
-  const outcomeVal  = isResult ? Number(result.state?.outcomes?.[0] ?? 0) : -1;
+  const outcomeVal =
+    result.state?.phase === 'result'
+      ? Number(result.state.outcomes?.[0] ?? 0)
+      : -1;
   const houseChoice: RpsChoice = outcomeVal === 3 ? choice : (outcomeVal as RpsChoice);
 
   const spinLabel =

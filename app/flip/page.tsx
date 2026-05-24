@@ -91,7 +91,10 @@ export default function FlipPage() {
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
 
-  const pendingBetId = contractPendingBet && contractPendingBet !== BigInt(0) ? contractPendingBet : null;
+  const pendingBetId =
+    typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
+      ? contractPendingBet
+      : null;
   const balStr = wildBalance ? Number(formatEther(wildBalance as bigint)).toFixed(2) : '0.00';
 
   const resultPhase = result.state?.phase ?? 'idle';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useReadContract, useReadContracts } from 'wagmi';
+import type { Abi } from 'viem';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
 
@@ -21,20 +22,20 @@ export interface TokenConfig {
 export function useWheelConfig(configId: number = 0) {
   const { data: configsCount } = useReadContract({
     address: addresses.games.wheel,
-    abi: abis.wheel,
+    abi: abis.wheel as Abi,
     functionName: 'configsCount',
   });
 
   const { data: configData, isLoading: isLoadingConfig } = useReadContract({
     address: addresses.games.wheel,
-    abi: abis.wheel,
+    abi: abis.wheel as Abi,
     functionName: 'gameConfigs',
     args: [configId],
   });
 
   const { data: tokenInfo, isLoading: isLoadingToken } = useReadContract({
     address: addresses.games.wheel,
-    abi: abis.wheel,
+    abi: abis.wheel as Abi,
     functionName: 'supportedTokenInfo',
     args: [addresses.wildToken],
   });
@@ -64,7 +65,7 @@ export function useWheelConfig(configId: number = 0) {
 export function useAllWheelConfigs() {
   const { data: configsCount } = useReadContract({
     address: addresses.games.wheel,
-    abi: abis.wheel,
+    abi: abis.wheel as Abi,
     functionName: 'configsCount',
   });
 
@@ -72,7 +73,7 @@ export function useAllWheelConfigs() {
   
   const configCalls = Array.from({ length: count }, (_, i) => ({
     address: addresses.games.wheel as `0x${string}`,
-    abi: abis.wheel,
+    abi: abis.wheel as Abi,
     functionName: 'gameConfigs' as const,
     args: [i] as const,
   }));

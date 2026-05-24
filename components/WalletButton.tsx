@@ -43,7 +43,13 @@ export function WalletButton() {
   const { connectors, connect, isPending, error } = useConnect({
     mutation: {
       onSuccess(data) {
-        const addr = data.accounts[0]
+        const firstAccount = data.accounts[0]
+        const addr =
+          typeof firstAccount === 'string'
+            ? firstAccount
+            : (firstAccount && typeof firstAccount === 'object' && 'address' in firstAccount && typeof firstAccount.address === 'string'
+                ? firstAccount.address
+                : null)
         if (addr) handleAuth(addr)
       },
     },

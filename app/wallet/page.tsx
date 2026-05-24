@@ -53,7 +53,8 @@ export default function WalletPage() {
   const [statusMsg, setStatusMsg] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const fmt = (b?: bigint) => b ? Number(formatEther(b)).toFixed(2) : '0.00';
+  const fmt = (b?: unknown) =>
+    typeof b === 'bigint' ? Number(formatEther(b)).toFixed(2) : '0.00';
 
   const handleCopy = () => {
     if (!address) return;
