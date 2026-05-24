@@ -12,6 +12,11 @@ import { base } from 'wagmi/chains'
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
   const [mounted, setMounted] = useState(false)
+  const privyAppId = (
+    process.env.NEXT_PUBLIC_PRIVY_APP_ID ??
+    process.env.NEXT_PUBLIC_PRIVY_AppID ??
+    ''
+  ).trim()
 
   useEffect(() => {
     setMounted(true)
@@ -19,7 +24,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_AppID!}
+      appId={privyAppId}
       config={{
         loginMethods: ['google', 'wallet'],
         defaultChain: base,
