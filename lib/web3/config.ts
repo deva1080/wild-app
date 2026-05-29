@@ -14,6 +14,8 @@ export const config = createConfig({
       : []),
   ],
   transports: {
-    [base.id]: http(),
+    [base.id]: http(undefined, { batch: true }),
   },
+  // Avoid wagmi auto-polling – refresh is driven explicitly by refetchAll()
+  pollingInterval: 0,
 })

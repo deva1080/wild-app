@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Rocket, CircleDollarSign } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -22,14 +23,113 @@ function fmtMult(bp: number): string {
   return (bp / 100).toFixed(2) + 'x';
 }
 
-// ── Crash Chart ────────────────────────────────────────────────────────────────
+// ── Starfield Background ──────────────────────────────────────────────────────
 
-const STARS: [number, number][] = [
-  [0.07, 0.18], [0.20, 0.65], [0.36, 0.12], [0.52, 0.40], [0.70, 0.22],
-  [0.87, 0.55], [0.13, 0.50], [0.46, 0.78], [0.93, 0.32], [0.30, 0.87],
-  [0.61, 0.15], [0.79, 0.70], [0.04, 0.80], [0.43, 0.33], [0.96, 0.60],
-  [0.24, 0.28], [0.67, 0.85], [0.82, 0.42], [0.15, 0.92], [0.55, 0.58],
-];
+function Starfield({ intensity }: { intensity: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const starsRef = useRef<{ x: number; y: number; z: number; color: number }[]>([]);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+      canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    const maxStars = 200;
+    if (starsRef.current.length === 0) {
+      for (let i = 0; i < maxStars; i++) {
+        starsRef.current.push({
+          x: Math.random() * canvas.offsetWidth,
+          y: Math.random() * canvas.offsetHeight,
+          z: Math.random(),
+          color: Math.random(),
+        });
+      }
+    }
+
+    let lastTime = performance.now();
+    const draw = (now: number) => {
+      const dt = Math.min(now - lastTime, 50) / 1000;
+      lastTime = now;
+      const w = canvas.offsetWidth;
+      const h = canvas.offsetHeight;
+
+      ctx.clearRect(0, 0, w, h);
+
+      const speed = 20 + intensity * 400;
+      const count = Math.min(Math.floor(30 + intensity * 170), maxStars);
+      const stars = starsRef.current;
+
+      for (let i = 0; i < count; i++) {
+        const s = stars[i];
+        s.x -= (s.z * 0.5 + 0.5) * speed * dt;
+
+        if (s.x < -4) {
+          s.x = w + 4;
+          s.y = Math.random() * h;
+          s.z = Math.random();
+          s.color = Math.random();
+        }
+
+        const tailLen = intensity * s.z * 30;
+        const size = 0.5 + s.z * 1.8;
+        const alpha = 0.15 + s.z * 0.5 + intensity * 0.3;
+
+        let r = 255, g = 255, b = 255;
+        if (intensity > 0.3) {
+          const ci = s.color;
+          if (ci < 0.25) { r = 222; g = 188; b = 110; }
+          else if (ci < 0.45) { r = 140; g = 104; b = 37; }
+          else if (ci < 0.55 && intensity > 0.6) { r = 74; g = 222; b = 128; }
+          else if (ci < 0.62 && intensity > 0.8) { r = 248; g = 113; b = 113; }
+          else if (ci < 0.68 && intensity > 0.9) { r = 147; g = 130; b = 255; }
+        }
+
+        if (tailLen > 1) {
+          const grad = ctx.createLinearGradient(s.x, s.y, s.x + tailLen, s.y);
+          grad.addColorStop(0, `rgba(${r},${g},${b},${alpha})`);
+          grad.addColorStop(1, `rgba(${r},${g},${b},0)`);
+          ctx.fillStyle = grad;
+          ctx.fillRect(s.x, s.y - size / 2, tailLen, size);
+        }
+
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`;
+        ctx.fill();
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    rafRef.current = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      ro.disconnect();
+    };
+  }, [intensity]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      style={{ zIndex: 0 }}
+    />
+  );
+}
+
+// ── Crash Chart ──────────────────────────────────────────────────────────────
 
 function CrashChart({
   displayMult,
@@ -39,6 +139,8 @@ function CrashChart({
   showFinalResult,
   isWin,
   loading,
+  width,
+  height,
 }: {
   displayMult: number;
   targetMult: number;
@@ -47,9 +149,11 @@ function CrashChart({
   showFinalResult: boolean;
   isWin: boolean;
   loading: boolean;
+  width: number;
+  height: number;
 }) {
-  const W = 560, H = 220;
-  const padL = 46, padB = 28, padT = 16, padR = 52;
+  const W = width || 800, H = height || 220;
+  const padL = 46, padB = 40, padT = 32, padR = 16;
   const cW = W - padL - padR;
   const cH = H - padT - padB;
 
@@ -92,8 +196,10 @@ function CrashChart({
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
+      width={W}
+      height={H}
       className="w-full h-full"
-      preserveAspectRatio="xMidYMid meet"
+      preserveAspectRatio="none"
     >
       <defs>
         <filter id={glowId}>
@@ -112,25 +218,6 @@ function CrashChart({
           <stop offset="100%" stopColor={lineColor} stopOpacity="0.01" />
         </linearGradient>
       </defs>
-
-      {/* Stars */}
-      {STARS.map(([fx, fy], i) => (
-        <circle
-          key={i}
-          cx={padL + fx * cW}
-          cy={padT + fy * cH}
-          r={i % 3 === 0 ? 1.4 : 0.9}
-          fill="rgba(255,255,255,0.28)"
-        />
-      ))}
-
-      {/* Crown silhouette (background watermark) */}
-      <g opacity="0.055" transform={`translate(${W / 2 - 52},${padT + 10}) scale(2.2)`}>
-        <path d="M4 32h40M4 32L8 12l10 9L24 4l6 17 10-9 4 20H4z" fill="#c8920a" />
-        <circle cx="4" cy="12" r="2.8" fill="#c8920a" />
-        <circle cx="24" cy="4" r="2.8" fill="#c8920a" />
-        <circle cx="44" cy="12" r="2.8" fill="#c8920a" />
-      </g>
 
       {/* Horizontal grid + Y-axis labels */}
       {yTicks.map((v) => {
@@ -337,7 +424,17 @@ export default function CrashPage() {
   if (!address) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-6">
-        <h1 className="text-3xl font-black text-amber-100 tracking-tight">Crash</h1>
+        <h1 
+          className="text-[42px] font-black uppercase tracking-tight"
+          style={{
+            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
+          }}
+        >Crash</h1>
         <p className="text-zinc-400 text-center max-w-xs">Set your target multiplier. If the crash goes above it, you win.</p>
         <WalletButton />
       </div>
@@ -347,15 +444,56 @@ export default function CrashPage() {
   // Determine center display
   const isIdle = !loading && !animating && !showFinalResult && resultPhase === 'idle';
 
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const [chartSize, setChartSize] = useState({ w: 800, h: 220 });
+  useEffect(() => {
+    const el = chartContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setChartSize({ w: Math.round(width), h: Math.round(height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
 
+      {/* Global gradient defs for lucide icon strokes */}
+      <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
+        <defs>
+          <linearGradient id="gold-rocket-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#debc6e" />
+            <stop offset="100%" stopColor="#8c6825" />
+          </linearGradient>
+        </defs>
+      </svg>
+
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-500/10 bg-[#0d0d0d]/60 flex-shrink-0">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-sm font-bold">
-          <span className="text-amber-400">♦</span>
-          $WILD
-          <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black tracking-wide"
+          style={{
+            border: '2px solid transparent',
+            backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            boxShadow: '0 0 12px rgba(222,188,110,0.15)',
+          }}
+        >
+          <span
+            style={{
+              background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >$WILD</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
+            <defs><linearGradient id="chevron-grad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
+            <path stroke="url(#chevron-grad)" d="m6 9 6 6 6-6"/>
+          </svg>
         </div>
 
         {/* ── Speed toggle ── */}
@@ -397,16 +535,17 @@ export default function CrashPage() {
 
       {/* ── Center: chart ── */}
       <div
-        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl"
-        style={{
-          background: 'linear-gradient(180deg, #0a0a0a 0%, #0d0d0d 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 32px rgba(0,0,0,0.6), 0 1px 0 rgba(0,0,0,0.8)',
-          border: '1px solid rgba(255,255,255,0.05)',
-        }}
+        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]"
       >
+        {/* Starfield */}
+        <Starfield intensity={
+          animating
+            ? Math.min((displayMult - 100) / 1500, 1)
+            : loading ? 0.08 : 0.03
+        } />
 
         {/* Chart */}
-        <div className="absolute inset-0 px-2 py-1">
+        <div ref={chartContainerRef} className="absolute inset-0" style={{ zIndex: 1 }}>
           <CrashChart
             displayMult={animating || showFinalResult ? displayMult : 100}
             targetMult={targetMult}
@@ -414,6 +553,8 @@ export default function CrashPage() {
             animating={animating}
             showFinalResult={showFinalResult}
             isWin={isWin}
+            width={chartSize.w}
+            height={chartSize.h}
             loading={loading}
           />
         </div>
@@ -480,66 +621,99 @@ export default function CrashPage() {
 
       {/* ── Bottom controls ── */}
       <div className="flex-shrink-0 p-4">
-        <div className="rounded-2xl bg-[#111111] border border-zinc-800/80 overflow-hidden">
-          <div className="grid grid-cols-3 divide-x divide-zinc-800/80">
+        <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
+          <div className="grid grid-cols-3">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bet Amount</p>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 text-base">♦</span>
+              <p
+                className="text-sm font-black uppercase tracking-widest"
+                style={{
+                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }}
+              >Bet Amount</p>
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+                <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-rocket-grad)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
                   value={amount} disabled={isPlaying}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40"
+                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={isPlaying} onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed">+</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  </button>
                   <button disabled={isPlaying} onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed">−</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-1.5 flex-wrap">
-                {CHIP_VALUES.map((v) => (
-                  <button key={v} disabled={isPlaying} onClick={() => setAmount(v)}
-                    className={`px-2 py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                      amount === v ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                    }`}>{v}</button>
-                ))}
-                {wildBalance && (
-                  <button disabled={isPlaying} onClick={() => setAmount(Number(formatEther(wildBalance as bigint)).toFixed(2))}
-                    className="px-2 py-1 rounded text-xs font-bold border bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-amber-400/40 hover:text-amber-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed">MAX</button>
-                )}
+              <div className="grid grid-cols-3 gap-1.5">
+                {[...CHIP_VALUES, ...(wildBalance ? ['MAX'] : [])].map((v) => {
+                  const val = v === 'MAX' ? Number(formatEther(wildBalance as bigint)).toFixed(2) : v;
+                  const active = amount === val || (v !== 'MAX' && amount === v);
+                  return (
+                    <button
+                      key={v}
+                      disabled={isPlaying}
+                      onClick={() => setAmount(val)}
+                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                      style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
+                    >{v}</button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] text-zinc-600">Balance: {balStr} WILD</p>
             </div>
 
             {/* MULTIPLIER */}
-            <div className="p-4 space-y-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Multiplier</p>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 text-base">♦</span>
+            <div className="p-4 space-y-3 border-x border-amber-400/10 mx-0">
+              <p
+                className="text-sm font-black uppercase tracking-widest"
+                style={{
+                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }}
+              >Multiplier</p>
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2">
+                <Rocket className="w-5 h-5 shrink-0" stroke="url(#gold-rocket-grad)" strokeWidth={1.8} />
                 <span className={`flex-1 text-xl font-black tabular-nums ${isPlaying ? 'text-zinc-500' : 'text-zinc-100'}`}>
                   {fmtMult(multiplier)}
                 </span>
                 <div className="flex flex-col gap-0.5">
                   <button disabled={isPlaying} onClick={() => setMultiplier((v) => Math.min(v + 10, 10000))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed">+</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  </button>
                   <button disabled={isPlaying} onClick={() => setMultiplier((v) => Math.max(v - 10, 110))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed">−</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-1.5 flex-wrap">
-                {MULT_OPTIONS.map((v) => (
-                  <button key={v} disabled={isPlaying} onClick={() => setMultiplier(v)}
-                    className={`px-2 py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                      multiplier === v ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                    }`}>{fmtMult(v)}</button>
-                ))}
+              <div className="grid grid-cols-3 gap-1.5">
+                {MULT_OPTIONS.map((v) => {
+                  const active = multiplier === v;
+                  return (
+                    <button
+                      key={v}
+                      disabled={isPlaying}
+                      onClick={() => setMultiplier(v)}
+                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                      style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
+                    >{fmtMult(v)}</button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] text-zinc-600">Win if crash ≥ {fmtMult(multiplier)}</p>
             </div>
 
             {/* LAUNCH */}
@@ -547,22 +721,29 @@ export default function CrashPage() {
               <button
                 onClick={handlePlay}
                 disabled={isPlaying}
-                className="w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2"
+                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
                 style={{
-                  background: 'linear-gradient(135deg, #d4a017 0%, #c8920a 40%, #8b6000 100%)',
-                  boxShadow: isPlaying ? 'none' : '0 0 30px rgba(200,146,10,0.3), inset 0 1px 0 rgba(255,220,80,0.3)',
-                  border: '1px solid rgba(200,146,10,0.4)',
-                  color: '#1a0e00',
+                  border: '3px solid transparent',
+                  backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                  boxShadow: isPlaying
+                    ? 'none'
+                    : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
-                  <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
-                  <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
-                  <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
-                </svg>
-                <span className="font-black text-xl tracking-widest" style={{ letterSpacing: '0.12em' }}>
+                <Rocket className="w-12 h-12" stroke="url(#gold-rocket-grad)" strokeWidth={1.8} />
+                <span
+                  className="font-black text-4xl tracking-[0.15em]"
+                  style={{
+                    background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    color: 'transparent',
+                    filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
+                  }}
+                >
                   LAUNCH
                 </span>
               </button>

@@ -160,7 +160,17 @@ export default function FlipPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-6">
         <CoinFace side={0} size={140} />
-        <h1 className="text-3xl font-black text-amber-100 tracking-tight">Coin Flip</h1>
+        <h1
+          className="text-[42px] font-black uppercase tracking-tight"
+          style={{
+            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
+          }}
+        >Coin Flip</h1>
         <p className="text-zinc-400 text-center max-w-xs">Pick a side. Double your bet. 50/50 odds.</p>
         <WalletButton />
       </div>
@@ -171,15 +181,35 @@ export default function FlipPage() {
     <div className="flex flex-col h-full">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-500/10 bg-[#0d0d0d]/60 flex-shrink-0">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-sm font-bold">
-          <span className="text-amber-400">♦</span>
-          $WILD
-          <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black tracking-wide"
+          style={{
+            border: '2px solid transparent',
+            backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            boxShadow: '0 0 12px rgba(222,188,110,0.15)',
+          }}
+        >
+          <span
+            style={{
+              background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >$WILD</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
+            <defs><linearGradient id="chevron-grad-flip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
+            <path stroke="url(#chevron-grad-flip)" d="m6 9 6 6 6-6"/>
+          </svg>
         </div>
 
         <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-zinc-600">
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-3 h-3 ${txMode === 'delegated' ? 'text-amber-400' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" className={`w-3 h-3 ${txMode === 'delegated' ? 'text-amber-400' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
           {txMode === 'delegated' ? <span className="text-amber-400">Fast TX</span> : 'Standard TX'}
         </div>
       </div>
@@ -192,7 +222,7 @@ export default function FlipPage() {
       )}
 
       {/* ── Coin area (flex-1) ── */}
-      <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden gap-5">
+      <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden gap-5 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
         {/* Radial glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-72 h-72 rounded-full bg-amber-500/6 blur-3xl" />
@@ -217,7 +247,7 @@ export default function FlipPage() {
 
         {/* Status text below coin while spinning */}
         {isSpinning && spinLabel && (
-          <p className="relative z-10 text-amber-300/70 text-sm font-medium tracking-wide animate-pulse">
+          <p className="relative z-10 text-amber-300/50 text-xs font-medium animate-pulse tracking-widest uppercase">
             {spinLabel}
           </p>
         )}
@@ -266,15 +296,24 @@ export default function FlipPage() {
 
       {/* ── Bottom controls panel ── */}
       <div className="flex-shrink-0 p-4">
-        <div className="rounded-2xl bg-[#111111] border border-zinc-800/80 overflow-hidden">
-          <div className="grid grid-cols-3 divide-x divide-zinc-800/80">
+        <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
+          <div className="grid grid-cols-3">
 
             {/* Column 1: BET AMOUNT */}
             <div className="p-4 space-y-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bet Amount</p>
+              <p
+                className="text-sm font-black uppercase tracking-widest"
+                style={{
+                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }}
+              >Bet Amount</p>
 
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 text-base">♦</span>
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+                <span className="text-amber-400 text-lg font-black">$</span>
                 <input
                   type="number"
                   min="0.01"
@@ -282,69 +321,70 @@ export default function FlipPage() {
                   value={amount}
                   disabled={isSpinning}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40"
+                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
                   <button
                     disabled={isSpinning}
                     onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >+</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  </button>
                   <button
                     disabled={isSpinning}
                     onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >−</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
                 </div>
               </div>
 
-              <div className="flex gap-1.5 flex-wrap">
-                {CHIP_VALUES.map((v) => (
-                  <button
-                    key={v}
-                    disabled={isSpinning}
-                    onClick={() => setAmount(v)}
-                    className={`px-2 py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                      amount === v
-                        ? 'bg-amber-500/25 border-amber-400/50 text-amber-200'
-                        : 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                    }`}
-                  >
-                    {v}
-                  </button>
-                ))}
-                {wildBalance && (
-                  <button
-                    disabled={isSpinning}
-                    onClick={() => setAmount(Number(formatEther(wildBalance as bigint)).toFixed(2))}
-                    className="px-2 py-1 rounded text-xs font-bold border bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-amber-400/40 hover:text-amber-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    MAX
-                  </button>
-                )}
+              <div className="grid grid-cols-3 gap-1.5">
+                {[...CHIP_VALUES, ...(wildBalance ? ['MAX'] : [])].map((v) => {
+                  const val = v === 'MAX' ? Number(formatEther(wildBalance as bigint)).toFixed(2) : v;
+                  const active = amount === val || (v !== 'MAX' && amount === v);
+                  return (
+                    <button
+                      key={v}
+                      disabled={isSpinning}
+                      onClick={() => setAmount(val)}
+                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                      style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
+                    >{v}</button>
+                  );
+                })}
               </div>
-
-              <p className="text-[10px] text-zinc-600">Balance: {balStr} WILD</p>
             </div>
 
             {/* Column 2: CHOOSE SIDE */}
-            <div className="p-4 flex flex-col items-center justify-center gap-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Choose Side</p>
+            <div className="p-4 flex flex-col items-center justify-center gap-3 border-x border-amber-400/10">
+              <p
+                className="text-sm font-black uppercase tracking-widest"
+                style={{
+                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }}
+              >Choose Side</p>
               <div className="flex items-center gap-3 w-full">
                 <button
                   disabled={isSpinning}
                   onClick={() => setSide(0)}
                   className={`flex-1 py-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 0
-                      ? 'border-amber-400 bg-amber-500/15 shadow-[0_0_20px_rgba(251,191,36,0.15)]'
+                      ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_0_20px_rgba(222,188,110,0.15)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
                   }`}
                 >
                   <svg width="22" height="18" viewBox="0 0 48 40" fill="none">
-                    <path d="M4 36h40M4 36L8 14l10 10L24 6l6 18 10-10 4 22H4z" stroke={side === 0 ? '#f59e0b' : '#52525b'} strokeWidth="3" strokeLinejoin="round" fill={side === 0 ? 'rgba(245,158,11,0.2)' : 'none'}/>
-                    <circle cx="4" cy="14" r="3" fill={side === 0 ? '#f59e0b' : '#52525b'}/>
-                    <circle cx="24" cy="6" r="3" fill={side === 0 ? '#f59e0b' : '#52525b'}/>
-                    <circle cx="44" cy="14" r="3" fill={side === 0 ? '#f59e0b' : '#52525b'}/>
+                    <path d="M4 36h40M4 36L8 14l10 10L24 6l6 18 10-10 4 22H4z" stroke={side === 0 ? '#debc6e' : '#52525b'} strokeWidth="3" strokeLinejoin="round" fill={side === 0 ? 'rgba(222,188,110,0.2)' : 'none'}/>
+                    <circle cx="4" cy="14" r="3" fill={side === 0 ? '#debc6e' : '#52525b'}/>
+                    <circle cx="24" cy="6" r="3" fill={side === 0 ? '#debc6e' : '#52525b'}/>
+                    <circle cx="44" cy="14" r="3" fill={side === 0 ? '#debc6e' : '#52525b'}/>
                   </svg>
                   <span className={`text-[10px] font-bold tracking-wider ${side === 0 ? 'text-amber-300' : 'text-zinc-500'}`}>HEADS</span>
                 </button>
@@ -374,16 +414,38 @@ export default function FlipPage() {
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="w-full h-full min-h-[90px] rounded-xl font-black text-2xl tracking-widest transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
                 style={{
-                  background: 'linear-gradient(135deg, #d4a017 0%, #c8920a 40%, #8b6000 100%)',
-                  boxShadow: loading ? 'none' : '0 0 30px rgba(200,146,10,0.3), inset 0 1px 0 rgba(255,220,80,0.3)',
-                  color: '#1a0e00',
-                  border: '1px solid rgba(200,146,10,0.4)',
-                  letterSpacing: '0.12em',
+                  border: '3px solid transparent',
+                  backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                  boxShadow: loading
+                    ? 'none'
+                    : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                FLIP
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <defs><linearGradient id="flip-btn-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
+                  <circle cx="12" cy="12" r="8" stroke="url(#flip-btn-grad)" strokeWidth="1.8"/>
+                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M9 9.5a4 4 0 0 1 6 0"/>
+                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M15 14.5a4 4 0 0 1-6 0"/>
+                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M9 8l0 2-2 0"/>
+                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M15 16l0-2 2 0"/>
+                </svg>
+                <span
+                  className="font-black text-4xl tracking-[0.15em]"
+                  style={{
+                    background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    color: 'transparent',
+                    filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
+                  }}
+                >
+                  FLIP
+                </span>
               </button>
             </div>
 

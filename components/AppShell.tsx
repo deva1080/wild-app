@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Gamepad2, Scissors, Wallet } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { WalletButton } from '@/components/WalletButton';
@@ -17,14 +18,6 @@ const IconGamepad = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <rect x="2" y="6" width="20" height="12" rx="2" />
     <path d="M6 12h4m-2-2v4m10-2h.01M15 14h.01" />
-  </svg>
-);
-
-const IconWallet = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4" />
-    <path d="M4 6v12c0 1.1.9 2 2 2h14v-4" />
-    <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z" />
   </svg>
 );
 
@@ -61,12 +54,12 @@ const IconBase = ({ className = "w-4 h-4" }: { className?: string }) => (
 );
 
 const navItems = [
-  { href: '/', label: 'Play', icon: IconGamepad },
+  { href: '/', label: 'Play', icon: Gamepad2 },
   { href: '/crash', label: 'Crash', icon: IconCrown },
   { href: '/flip', label: 'Flip', icon: IconCoin },
-  { href: '/rps', label: 'RPS', icon: IconGamepad },
+  { href: '/rps', label: 'RPS', icon: Scissors },
   { href: '/wheel', label: 'Wheel', icon: IconSettings },
-  { href: '/wallet', label: 'Wallet', icon: IconWallet },
+  { href: '/wallet', label: 'Wallet', icon: Wallet },
   { href: '/transactions', label: 'Transactions', icon: IconFileText },
 ];
 
@@ -87,15 +80,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-screen bg-transparent text-zinc-100 font-sans overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-amber-500/20 bg-[#111111] hidden md:flex flex-col justify-between flex-shrink-0">
+      <aside className="border-r border-amber-400/20 bg-[#111111] hidden md:flex flex-col justify-between flex-shrink-0">
         <div>
-          <Link href="/" className="flex items-center p-5 pb-6">
+          <Link href="/" className="flex flex-col items-start gap-1 p-5 pb-6">
+            
             <Image
               src="/title.webp"
               alt="Wildcard Games"
-              width={170}
-              height={42}
-              className="h-auto w-36"
+              width={500}
+              height={100}
+              className="h-auto w-48"
               priority
             />
           </Link>
@@ -107,22 +101,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={href}
                   href={href}
-                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  className={`relative flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     active
-                      ? 'bg-gradient-to-r from-amber-400/25 to-amber-300/10 text-amber-100 border border-amber-300/40'
-                      : 'text-zinc-300 hover:bg-zinc-900/60 hover:text-zinc-100 border border-transparent'
+                      ? 'bg-gradient-to-r from-amber-400/15 to-amber-400/0 text-amber-100 border border-amber-400/35'
+                      : 'text-zinc-300 hover:bg-[#1a1a1a] hover:text-zinc-100 border border-transparent hover:border-amber-400/25'
                   }`}
                 >
-                  <Icon className="w-5 h-5" /> {label}
+                  {active && (
+                    <span
+                      aria-hidden
+                      className="absolute left-1 top-2 bottom-2 w-[3px] rounded-full"
+                      style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)' }}
+                    />
+                  )}
+                  <Icon className={`w-5 h-5 ${active ? 'text-amber-300' : ''}`} /> {label}
                 </Link>
               );
             })}
           </nav>
         </div>
 
-        <div className="p-4 border-t border-amber-500/20">
-          <div className="flex items-center gap-2 px-4 py-2 text-xs text-zinc-400">
-            <IconBase className="w-3 h-3" /> Base Network
+        <div className="p-4 border-t border-amber-400/20">
+          <div className="flex items-center gap-2 bg-[#1a1a1a] border border-amber-400/25 rounded-lg px-3 py-2 text-[11px] font-medium tracking-wide text-zinc-200">
+            <IconBase className="w-3.5 h-3.5 text-amber-300" /> Base Network
           </div>
         </div>
       </aside>
@@ -130,11 +131,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <header className="h-16 border-b border-amber-500/20 bg-[#0d0d0d] text-white flex items-center justify-between px-6 flex-shrink-0">
+        <header className="h-16 border-b border-amber-400/20 bg-[#0d0d0d] text-white flex items-center justify-between px-6 flex-shrink-0">
           {/* Mobile logo */}
           <Link href="/" className="flex md:hidden items-center gap-2">
             <IconCrown className="w-6 h-6 text-amber-300" />
-            <span className="font-bold tracking-wider">WILDCARD</span>
+            <span
+              className="font-black tracking-wider"
+              style={{
+                background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                color: 'transparent',
+              }}
+            >
+              WILDCARD
+            </span>
           </Link>
 
           <div className="hidden md:block" />
@@ -142,13 +154,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             {address && (
               <>
-                <div className="hidden sm:flex items-center gap-1.5 border border-amber-400/35 rounded-lg px-3 py-1.5 text-sm font-medium bg-[#1a1a1a] text-amber-100">
-                  {formatBalance(wildBalance)} WILD
-                  <IconCoin className="w-3.5 h-3.5 text-amber-300" />
+                <div className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
+                  <span className="leading-none">{formatBalance(wildBalance)}</span>
+                  <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">WILD</span>
+                  <span
+                    aria-hidden
+                    className="grid place-items-center w-5 h-5 rounded-md text-[#1a1205] font-black text-[13px] leading-none"
+                    style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)' }}
+                  >
+                    $
+                  </span>
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 border border-amber-400/35 rounded-lg px-3 py-1.5 text-sm font-medium bg-[#1a1a1a] text-amber-100">
-                  {formatBalance(creditsBalance)} Credits
-                  <IconGamepad className="w-3.5 h-3.5 text-amber-300" />
+                <div className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
+                  <span className="leading-none">{formatBalance(creditsBalance)}</span>
+                  <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">CREDITS</span>
+                  <span
+                    aria-hidden
+                    className="grid place-items-center w-5 h-5 rounded-md text-[#1a1205]"
+                    style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)' }}
+                  >
+                    <IconGamepad className="w-3 h-3" />
+                  </span>
                 </div>
               </>
             )}

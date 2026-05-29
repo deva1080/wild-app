@@ -32,11 +32,48 @@ const featurePills = [
 
 export default function Home() {
   const { address } = useAccount();
+  const playersBySlug = React.useMemo(
+    () =>
+      Object.fromEntries(
+        games.map((g) => [g.slug, Math.floor(Math.random() * 5000) + 1])
+      ) as Record<string, number>,
+    []
+  );
+
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = React.useState(false);
+  const [canScrollRight, setCanScrollRight] = React.useState(false);
+
+  const updateScrollButtons = React.useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  React.useEffect(() => {
+    updateScrollButtons();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', updateScrollButtons, { passive: true });
+    window.addEventListener('resize', updateScrollButtons);
+    return () => {
+      el.removeEventListener('scroll', updateScrollButtons);
+      window.removeEventListener('resize', updateScrollButtons);
+    };
+  }, [updateScrollButtons]);
+
+  const scrollByCards = (direction: 'left' | 'right') => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const step = Math.max(el.clientWidth * 0.8, 200);
+    el.scrollBy({ left: direction === 'right' ? step : -step, behavior: 'smooth' });
+  };
 
   return (
-    <div className="p-4 md:p-6 space-y-5 max-w-[1220px] mx-auto">
+    <div className="p-4 md:p-6 space-y-5 mx-auto">
       {/* Hero */}
-      <section className="relative overflow-hidden border border-amber-400/30 rounded-2xl h-[215px] md:h-[250px] shadow-[0_0_0_1px_rgba(251,191,36,0.1)]">
+      <section className="relative overflow-hidden border border-amber-400/30 rounded-2xl h-[386px] md:h-[450px] shadow-[0_0_0_1px_rgba(251,191,36,0.1)]">
         <Image
           src="/hero.webp"
           alt="Hero illustration"
@@ -46,22 +83,26 @@ export default function Home() {
           priority
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#111111] via-[#111111]/80 to-transparent" />
-        <div className="relative h-full p-5 md:p-7 flex items-center">
-          <div className="max-w-xl">
-            <p className="text-[10px] md:text-xs font-bold text-amber-200/80 tracking-widest mb-2">WILDCARD ORIGINALS</p>
-            <h1 className="text-2xl md:text-[44px] font-black text-zinc-100 leading-tight mb-2">
-              PLAY ON-CHAIN.
-              <br />
-              WIN <span className="text-amber-300">INSTANTLY.</span>
+        <div className="relative h-full pl-[44px] md:pl-[52px] pr-6 md:pr-8 py-7 md:py-9 flex items-center">
+          <div className="max-w-[692px]">
+            <p className="text-[12px] md:text-[14px] font-bold text-amber-200/80 tracking-widest mb-4">WILDCARD ORIGINALS</p>
+            <h1 className="text-[58px] md:text-[106px] leading-[0.85] mb-2.5 flex flex-col gap-0">
+              <span style={{ background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                PLAY ON-CHAIN.
+              </span>
+              <span style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                WIN INSTANTLY.
+              </span>
             </h1>
-            <p className="text-xs md:text-sm text-zinc-300 mb-4 max-w-md">
+            <p className="text-[14px] md:text-[17px] text-zinc-300 mb-5 max-w-[538px]">
               Multichain games with wallet-based access, transparent prize pools, and fast settlement.
             </p>
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-3">
               {!address && <WalletButton />}
               <Link
                 href="/crash"
-                className="px-4 py-2 text-sm font-semibold rounded-lg border border-amber-400/40 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25 transition-colors"
+                className="px-5 py-2.5 text-[17px] font-semibold rounded-lg text-[#1a1205] transition-opacity hover:opacity-90"
+                style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)' }}
               >
                 Explore Games
               </Link>
@@ -71,63 +112,123 @@ export default function Home() {
       </section>
 
       {/* Games Row + Right Panel */}
-      <section className="border border-amber-400/25 rounded-2xl bg-[#161616] p-4 md:p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xs font-bold text-amber-200/80 tracking-widest">GAMES</h2>
-          <button className="px-3 py-1.5 text-xs font-medium border border-amber-400/30 rounded-lg bg-[#1e1e1e] text-amber-100 hover:bg-[#222222] transition-colors">
-            View all
-          </button>
+      <section className="">
+        <div className="flex items-center justify-between">
+          
+         
         </div>
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_180px] gap-4 items-start">
-          <div className="overflow-x-auto pb-2">
-            <div className="flex gap-3 min-w-max">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_180px] gap-4 items-stretch">
+          <div className="relative group/carousel lg:h-full min-w-0">
+            <div
+              ref={scrollRef}
+              className="overflow-x-auto scroll-smooth lg:h-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            >
+            <div className="flex gap-3 min-w-max lg:h-full">
               {games.map((g) => {
+                const textShadow = '0 2px 4px #000, 0 0 10px rgba(0,0,0,0.95), 0 0 22px rgba(0,0,0,0.85), 0 0 36px rgba(0,0,0,0.6)';
                 const cardContent = (
-                  <>
-                    <div className="relative w-full aspect-square">
-                      <Image
-                        src={g.image}
-                        alt={g.name}
-                        fill
-                        sizes="140px"
-                        className={`object-cover transition-transform ${g.live ? 'group-hover:scale-[1.03]' : 'opacity-40 grayscale'}`}
-                      />
-                      {!g.live && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-[10px] font-bold tracking-widest text-zinc-300 bg-black/60 px-2 py-1 rounded">
-                            SOON
-                          </span>
-                        </div>
-                      )}
+                  <div className="relative w-full h-full">
+                    <Image
+                      src={g.image}
+                      alt={g.name}
+                      fill
+                      sizes="172px"
+                      className={`object-cover transition-transform ${g.live ? 'group-hover:scale-[1.03]' : 'opacity-40 grayscale'}`}
+                    />
+                    {!g.live && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-[10px] font-bold tracking-widest text-zinc-300 bg-black/60 px-2 py-1 rounded">
+                          SOON
+                        </span>
+                      </div>
+                    )}
+                    <div className="absolute inset-x-0 bottom-0 px-2.5 pb-3 text-center">
+                      <h3
+                        className={`font-black text-[42px] uppercase leading-[0.9] tracking-tight ${g.live ? '' : 'text-zinc-400'}`}
+                        style={
+                          g.live
+                            ? {
+                                background:
+                                  'linear-gradient(20deg, rgb(241, 241, 241), rgb(181, 177, 172))',
+                                WebkitBackgroundClip: 'text',
+                                backgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                color: 'transparent',
+                                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
+                              }
+                            : { textShadow }
+                        }
+                      >
+                        {g.name}
+                      </h3>
+                      <p
+                        className={`mt-2 flex items-center justify-center gap-1.5 text-[15px] font-semibold ${g.live ? 'text-zinc-100/90' : 'text-zinc-500'}`}
+                        style={{ textShadow }}
+                      >
+                        <svg
+                          aria-hidden
+                          viewBox="0 0 24 24"
+                          width="16"
+                          height="16"
+                          className="shrink-0"
+                        >
+                          <defs>
+                            <linearGradient id={`player-icon-${g.slug}`} x1="0" y1="0" x2="0" y2="1" gradientTransform="rotate(20)">
+                              <stop offset="0%" stopColor="#debc6e" />
+                              <stop offset="100%" stopColor="#8c6825" />
+                            </linearGradient>
+                          </defs>
+                          <path
+                            fill={`url(#player-icon-${g.slug})`}
+                            d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.69-8 6v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-3.31-3.58-6-8-6Z"
+                          />
+                        </svg>
+                        {playersBySlug[g.slug].toLocaleString('en-US')} playing
+                      </p>
                     </div>
-                    <div className="px-2.5 py-2">
-                      <h3 className={`font-bold text-xs md:text-sm uppercase tracking-wide ${g.live ? 'text-zinc-100' : 'text-zinc-500'}`}>{g.name}</h3>
-                      <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2">{g.description}</p>
-                      <span className={`inline-flex mt-1.5 text-[10px] font-medium border rounded px-1.5 py-0.5 ${g.live ? 'text-amber-200 border-amber-400/35 bg-amber-500/10' : 'text-zinc-600 border-zinc-700 bg-zinc-800/40'}`}>
-                        {g.mode}
-                      </span>
-                    </div>
-                  </>
+                  </div>
                 );
 
                 return g.live ? (
                   <Link
                     key={g.slug}
                     href={`/${g.slug}`}
-                    className="group w-[128px] md:w-[140px] border border-amber-400/25 rounded-lg bg-[#1a1a1a] hover:border-amber-300/60 transition-colors overflow-hidden"
+                    className="group w-[160px] lg:w-auto lg:h-full aspect-[9/16] shrink-0 border border-amber-400/25 rounded-xl bg-[#1a1a1a] hover:border-amber-300/60 transition-colors overflow-hidden"
                   >
                     {cardContent}
                   </Link>
                 ) : (
                   <div
                     key={g.slug}
-                    className="w-[128px] md:w-[140px] border border-zinc-800 rounded-lg bg-[#1a1a1a] overflow-hidden cursor-not-allowed"
+                    className="w-[160px] lg:w-auto lg:h-full aspect-[9/16] shrink-0 border border-zinc-800 rounded-xl bg-[#1a1a1a] overflow-hidden cursor-not-allowed"
                   >
                     {cardContent}
                   </div>
                 );
               })}
             </div>
+            </div>
+
+            <button
+              type="button"
+              aria-label="Scroll left"
+              onClick={() => scrollByCards('left')}
+              className={`absolute left-1 top-1/2 -translate-y-1/2 z-10 grid place-items-center w-9 h-9 rounded-full bg-black/70 backdrop-blur border border-amber-400/30 text-amber-100 hover:bg-black/85 transition-opacity ${canScrollLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              aria-label="Scroll right"
+              onClick={() => scrollByCards('right')}
+              className={`absolute right-1 top-1/2 -translate-y-1/2 z-10 grid place-items-center w-9 h-9 rounded-full bg-black/70 backdrop-blur border border-amber-400/30 text-amber-100 hover:bg-black/85 transition-opacity ${canScrollRight ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
           </div>
 
           <aside className="border border-amber-400/25 rounded-lg bg-[#1a1a1a] p-2.5 space-y-2">

@@ -153,7 +153,17 @@ export default function RPSPage() {
             <RpsIcon key={c} choice={c} size={52} active />
           ))}
         </div>
-        <h1 className="text-3xl font-black text-amber-100 tracking-tight">Rock Paper Scissors</h1>
+        <h1
+          className="text-[42px] font-black uppercase tracking-tight"
+          style={{
+            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
+            WebkitBackgroundClip: 'text',
+            backgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            color: 'transparent',
+            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
+          }}
+        >Rock Paper Scissors</h1>
         <p className="text-zinc-400 text-center max-w-xs">Choose your hand. Win pays 2×. Tie returns your bet.</p>
         <WalletButton />
       </div>
@@ -165,12 +175,28 @@ export default function RPSPage() {
     <div className="flex flex-col h-full">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-500/10 bg-[#0d0d0d]/60 flex-shrink-0">
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 text-sm font-bold">
-          <span className="text-amber-400">♦</span>
-          $WILD
-          <svg className="w-3 h-3 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="m6 9 6 6 6-6"/>
+      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black tracking-wide"
+          style={{
+            border: '2px solid transparent',
+            backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            boxShadow: '0 0 12px rgba(222,188,110,0.15)',
+          }}
+        >
+          <span
+            style={{
+              background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >$WILD</span>
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
+            <defs><linearGradient id="chevron-grad-rps" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
+            <path stroke="url(#chevron-grad-rps)" d="m6 9 6 6 6-6"/>
           </svg>
         </div>
         <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-zinc-600">
@@ -192,12 +218,7 @@ export default function RPSPage() {
 
       {/* ── Center: game display ── */}
       <div
-        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl flex flex-col items-center justify-center"
-        style={{
-          background: 'linear-gradient(180deg, #0a0a0a 0%, #0d0d0d 100%)',
-          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 4px 32px rgba(0,0,0,0.6)',
-          border: '1px solid rgba(255,255,255,0.05)',
-        }}
+        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl flex flex-col items-center justify-center border border-amber-400/25 bg-[#0a0a0a]"
       >
         {/* Ambient glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -336,53 +357,69 @@ export default function RPSPage() {
 
       {/* ── Bottom controls ── */}
       <div className="flex-shrink-0 p-4">
-        <div className="rounded-2xl bg-[#111111] border border-zinc-800/80 overflow-hidden">
-          <div className="grid grid-cols-3 divide-x divide-zinc-800/80">
+        <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
+          <div className="grid grid-cols-3">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Bet Amount</p>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-400 text-base">♦</span>
+              <p
+                className="text-sm font-black uppercase tracking-widest"
+                style={{
+                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }}
+              >Bet Amount</p>
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+                <span className="text-amber-400 text-lg font-black">$</span>
                 <input
                   type="number" min="0.01" step="0.01"
                   value={amount} disabled={loading}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40"
+                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={loading}
                     onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed">+</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  </button>
                   <button disabled={loading}
                     onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
-                    className="w-6 h-5 rounded bg-zinc-800 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed">−</button>
+                    className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
+                    <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                  </button>
                 </div>
               </div>
-              <div className="flex gap-1.5 flex-wrap">
-                {CHIP_VALUES.map((v) => (
-                  <button key={v} disabled={loading} onClick={() => setAmount(v)}
-                    className={`px-2 py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                      amount === v
-                        ? 'bg-amber-500/25 border-amber-400/50 text-amber-200'
-                        : 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                    }`}>{v}</button>
-                ))}
-                {wildBalance && (
-                  <button disabled={loading}
-                    onClick={() => setAmount(Number(formatEther(wildBalance as bigint)).toFixed(2))}
-                    className="px-2 py-1 rounded text-xs font-bold border bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-amber-400/40 hover:text-amber-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                    MAX
-                  </button>
-                )}
+              <div className="grid grid-cols-3 gap-1.5">
+                {[...CHIP_VALUES, ...(wildBalance ? ['MAX'] : [])].map((v) => {
+                  const val = v === 'MAX' ? Number(formatEther(wildBalance as bigint)).toFixed(2) : v;
+                  const active = amount === val || (v !== 'MAX' && amount === v);
+                  return (
+                    <button key={v} disabled={loading} onClick={() => setAmount(val)}
+                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                      style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
+                    >{v}</button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] text-zinc-600">Balance: {balStr} WILD</p>
             </div>
 
             {/* CHOICE */}
-            <div className="p-4 space-y-2">
-              <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Choose</p>
-              <div className="flex flex-col gap-1.5 h-[calc(100%-22px)]">
+            <div className="p-4 space-y-2 border-x border-amber-400/10">
+              <p
+                className="text-sm font-black uppercase tracking-widest"
+                style={{
+                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }}
+              >Choose</p>
+              <div className="flex flex-col gap-1.5 h-[calc(100%-30px)]">
                 {([0, 1, 2] as RpsChoice[]).map((c) => (
                   <button
                     key={c}
@@ -408,22 +445,34 @@ export default function RPSPage() {
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2"
+                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
                 style={{
-                  background: 'linear-gradient(135deg, #d4a017 0%, #c8920a 40%, #8b6000 100%)',
-                  boxShadow: loading ? 'none' : '0 0 30px rgba(200,146,10,0.3), inset 0 1px 0 rgba(255,220,80,0.3)',
-                  border: '1px solid rgba(200,146,10,0.4)',
-                  color: '#1a0e00',
+                  border: '3px solid transparent',
+                  backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
+                  backgroundOrigin: 'border-box',
+                  backgroundClip: 'padding-box, border-box',
+                  boxShadow: loading
+                    ? 'none'
+                    : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                {/* Hand throw icon */}
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 11V9a2 2 0 0 0-4 0v1"/>
-                  <path d="M14 10V8a2 2 0 0 0-4 0v2"/>
-                  <path d="M10 9.9V9a2 2 0 0 0-4 0v5a7 7 0 0 0 14 0v-4a2 2 0 0 0-4 0v2"/>
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <defs><linearGradient id="rps-btn-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
+                  <path stroke="url(#rps-btn-grad)" strokeWidth="1.8" d="M18 11V9a2 2 0 0 0-4 0v1"/>
+                  <path stroke="url(#rps-btn-grad)" strokeWidth="1.8" d="M14 10V8a2 2 0 0 0-4 0v2"/>
+                  <path stroke="url(#rps-btn-grad)" strokeWidth="1.8" d="M10 9.9V9a2 2 0 0 0-4 0v5a7 7 0 0 0 14 0v-4a2 2 0 0 0-4 0v2"/>
                 </svg>
-                <span className="font-black text-xl tracking-widest" style={{ letterSpacing: '0.1em' }}>
+                <span
+                  className="font-black text-4xl tracking-[0.15em]"
+                  style={{
+                    background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    color: 'transparent',
+                    filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
+                  }}
+                >
                   PLAY
                 </span>
               </button>
