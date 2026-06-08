@@ -177,7 +177,7 @@ contract WheelGame is BaseGame {
         BaseBet storage bet = baseBets[betId];
         if (bet.amount == 0 || bet.resolved) revert BetNotPending();
 
-        uint256 baseRandom = _generateRandom(seed, bet.placeBlockNumber);
+        uint256 baseRandom = _generateRandom(seed, bet.player, bet.placeBlockNumber);
 
         if (_checkExplosion(baseRandom)) {
             bet.resolved = true;
@@ -185,6 +185,7 @@ contract WheelGame is BaseGame {
             pendingBetId[bet.player] = 0;
             uint256[] memory explosionResults = _getExplosionOutcomes(betId);
             emit BetSettled(betId, bet.player, bet.token, bet.amount * bet.betCount, 0, explosionResults);
+            _emitLivePayout(betId, 0);
             return;
         }
 
@@ -244,6 +245,7 @@ contract WheelGame is BaseGame {
             unchecked { ++i; }
         }
         emit BetSettled(betId, bet.player, bet.token, cumulatedBetAmount, totalPayout, outcomes);
+        _emitLivePayout(betId, totalPayout);
         emit Roll(betId, bet.player, bet.token, cumulatedBetAmount, wheelBet.configId, rolledColors, totalPayout);
     }
 
@@ -307,6 +309,7 @@ contract WheelGame is BaseGame {
         if (_checkExplosion(baseRandom)) {
             wheelBet.rolled = new uint8[](betCount);
             emit BetSettled(betId, baseBets[betId].player, baseBets[betId].token, betAmountPerRoll * betCount, 0, new uint256[](betCount));
+            _emitLivePayout(betId, 0);
             return 0;
         }
 
@@ -344,12 +347,17 @@ contract WheelGame is BaseGame {
             unchecked { ++i; }
         }
         emit BetSettled(betId, baseBets[betId].player, baseBets[betId].token, cumulatedBetAmount, payout, outcomes);
+        _emitLivePayout(betId, payout);
         emit Roll(betId, baseBets[betId].player, baseBets[betId].token, cumulatedBetAmount, wheelBet.configId, rolledColors, payout);
     }
 
     // ══════════════════════════════════════════════════════════
     //                  BASEGAME VIRTUALS
     // ══════════════════════════════════════════════════════════
+
+    function _gameIdentifier(uint256 betId) internal view override returns (uint256) {
+        return _wheelBets[betId].configId;
+    }
 
     /// @dev gameChoice = abi.encode(uint32 configId, uint16 betCount, uint256 stopGain, uint256 stopLoss)
     function _decodeBaseChoice(bytes calldata gameChoice)
@@ -453,6 +461,114 @@ contract WheelGame is BaseGame {
         internal view override returns (uint256[] memory outcomes)
     {
         outcomes = new uint256[](baseBets[betId].betCount);
+    }
+
+    function _previewRoll(bytes memory specificChoice, uint256 betAmount, uint256 randomWord)
+        internal view override returns (uint256 payout, uint256 outcome)
+    {
+        (uint32 configId,,) = abi.decode(specificChoice, (uint32, uint256, uint256));
+        return _rollFromConfig(configId, betAmount, randomWord);
+    }
+
+    function _previewExplosionOutcomes(bytes memory /*specificChoice*/, uint16 betCount)
+        internal pure override returns (uint256[] memory outcomes)
+    {
+        outcomes = new uint256[](betCount);
+    }
+
+    function previewPlay(
+        bytes calldata gameChoice,
+        address token,
+        uint256 amount,
+        uint256 seed
+    ) external view override returns (uint256 payout, uint256[] memory outcomes) {
+        TokenConfig storage tc = supportedTokenInfo[token];
+        if (tc.maxBetAmount == 0) revert TokenNotConfigured();
+
+        (uint16 betCount, bytes memory specificChoice) = _decodeBaseChoice(gameChoice);
+        if (betCount == 0) revert InvalidBetCount();
+
+        uint256 betAmountPerRoll = amount / uint256(betCount);
+        if (betAmountPerRoll < tc.minBetAmount || betAmountPerRoll > tc.maxBetAmount)
+            revert BetAmountOutOfRange();
+
+        _validateGameChoice(specificChoice);
+
+        uint256 baseRandom = uint256(keccak256(abi.encode(seed)));
+        if (_checkExplosion(baseRandom)) {
+            outcomes = new uint256[](betCount);
+            return (0, outcomes);
+        }
+
+        (uint32 configId, uint256 stopGain, uint256 stopLoss) =
+            abi.decode(specificChoice, (uint32, uint256, uint256));
+
+        uint8[] memory rolledColors = new uint8[](betCount);
+        uint256 cumulatedPayout;
+        uint256 cumulatedBetAmount;
+        uint16 rollCount;
+
+        do {
+            cumulatedBetAmount += betAmountPerRoll;
+            uint256 rollRandom = uint256(keccak256(abi.encode(baseRandom, rollCount)));
+            uint256 rollPayout;
+            uint256 rollOutcome;
+            (rollPayout, rollOutcome) = _rollFromConfig(configId, betAmountPerRoll, rollRandom);
+            cumulatedPayout += rollPayout;
+            rolledColors[rollCount] = uint8(rollOutcome);
+            unchecked { ++rollCount; }
+        } while (
+            rollCount < betCount &&
+            !((stopGain > 0 && cumulatedPayout >= stopGain + cumulatedBetAmount) ||
+              (stopLoss > 0 && cumulatedBetAmount >= stopLoss + cumulatedPayout))
+        );
+
+        if (rollCount < betCount) {
+            assembly ("memory-safe") { mstore(rolledColors, rollCount) }
+        }
+
+        uint256 refundAmount = betAmountPerRoll * betCount - cumulatedBetAmount;
+        payout = cumulatedPayout + refundAmount;
+
+        outcomes = new uint256[](rolledColors.length);
+        for (uint256 i; i < rolledColors.length;) {
+            outcomes[i] = rolledColors[i];
+            unchecked { ++i; }
+        }
+    }
+
+    function _rollFromConfig(uint32 configId, uint256 betAmount, uint256 randomWord)
+        private view returns (uint256 payout, uint256 outcome)
+    {
+        uint72[] storage weightRanges = _gameConfigs[configId].weightRanges;
+        uint8 totalColors = uint8(weightRanges.length);
+        uint72 rolledWeight = uint72(randomWord % weightRanges[totalColors - 1]);
+
+        if (totalColors <= 9) {
+            if (rolledWeight < weightRanges[0]) outcome = 0;
+            else if (rolledWeight < weightRanges[1]) outcome = 1;
+            else if (rolledWeight < weightRanges[2]) outcome = 2;
+            else if (rolledWeight < weightRanges[3]) outcome = 3;
+            else if (rolledWeight < weightRanges[4]) outcome = 4;
+            else if (rolledWeight < weightRanges[5]) outcome = 5;
+            else if (rolledWeight < weightRanges[6]) outcome = 6;
+            else if (rolledWeight < weightRanges[7]) outcome = 7;
+            else outcome = 8;
+        } else {
+            uint8 low;
+            uint8 high = totalColors - 1;
+            while (low < high) {
+                uint8 mid = (low + high) / 2;
+                if (rolledWeight >= weightRanges[mid]) {
+                    unchecked { low = mid + 1; }
+                } else {
+                    high = mid;
+                }
+            }
+            outcome = low;
+        }
+
+        payout = (betAmount * _gameConfigs[configId].multipliers[outcome]) / BP_VALUE;
     }
 
     // ══════════════════════════════════════════════════════════

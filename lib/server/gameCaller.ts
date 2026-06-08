@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { privateKeyToAccount } from 'viem/accounts';
-import { Address, Hex, createPublicClient, createWalletClient, encodeFunctionData, http } from 'viem';
+import { Address, Hex, createPublicClient, createWalletClient, encodeFunctionData, http, keccak256, encodePacked } from 'viem';
 import { base } from 'viem/chains';
 import { abis } from '@/lib/web3/constants/abis';
 import { addresses } from '@/lib/web3/constants/addresses';
@@ -57,10 +57,15 @@ function buildSeed(): bigint {
 }
 
 const GAS_FLOOR: Record<string, bigint> = {
-  playGameDelegated: 400_000n,
+  playGameDelegated: 450_000n,
   settleBet: 200_000n,
   default: 500_000n,
 };
+
+// 30% overhead on top of the estimate, with a minimum floor per call type.
+// If estimation fails (tx would revert) we fall back to the floor so the
+// revert still lands on-chain for debugging.
+const GAS_BUFFER_MULTIPLIER = 130n; // 1.30x → multiply by 130 then divide by 100
 
 async function estimateGasWithBuffer(
   account: { address: Address },
@@ -68,23 +73,20 @@ async function estimateGasWithBuffer(
   data: Hex,
   gasFloorKey: keyof typeof GAS_FLOOR = 'default'
 ): Promise<bigint> {
+  const floor = GAS_FLOOR[gasFloorKey] ?? GAS_FLOOR.default;
   try {
-    const estimate = await publicClient.estimateGas({ account: account.address, to, data });
-    return (estimate * 200n) / 100n;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-
-    if (
-      message.includes('revert') ||
-      message.includes('execution reverted') ||
-      message.includes('invalid opcode') ||
-      message.includes('out of gas')
-    ) {
-      throw err;
-    }
-
-    console.warn(`[gameCaller] Gas estimation failed (transient), using floor for "${gasFloorKey}":`, message);
-    return GAS_FLOOR[gasFloorKey] ?? GAS_FLOOR.default;
+    const estimated = await publicClient.estimateGas({
+      account: account.address,
+      to,
+      data,
+    });
+    const withBuffer = (estimated * GAS_BUFFER_MULTIPLIER) / 100n;
+    // Always use at least the floor, in case estimation undershoots
+    return withBuffer > floor ? withBuffer : floor;
+  } catch {
+    // Estimation failed — tx will likely revert, but we send it anyway
+    // with the floor limit so the revert lands on-chain for debugging.
+    return floor;
   }
 }
 
@@ -108,12 +110,14 @@ async function sendRawTx(to: Address, data: Hex, gasFloorKey: keyof typeof GAS_F
   const { walletClient, account } = getNextCaller();
   const nonceQueue = getNonceQueue(account.address, publicClient);
 
+  // Estimate once before entering the nonce-retry loop
+  const gas = await estimateGasWithBuffer(account, to, data, gasFloorKey);
+  console.log(`[gameCaller] gas for ${gasFloorKey}: ${gas.toString()}`);
+
   for (let attempt = 0; attempt <= MAX_NONCE_RETRIES; attempt++) {
     const nonce = await nonceQueue.acquireNonce();
 
     try {
-      const gas = await estimateGasWithBuffer(account, to, data, gasFloorKey);
-
       const request = await walletClient.prepareTransactionRequest({
         account,
         to,
@@ -145,6 +149,18 @@ async function sendRawTx(to: Address, data: Hex, gasFloorKey: keyof typeof GAS_F
   throw new Error('[gameCaller] Exceeded max nonce retries');
 }
 
+function buildPlayCode(player: Address, game: Address): Hex {
+  const nonce = BigInt(`0x${randomBytes(8).toString('hex')}`);
+  return keccak256(
+    encodePacked(
+      ['address', 'address', 'uint256', 'uint256'],
+      [player, game, nonce, BigInt(Date.now())]
+    )
+  );
+}
+
+const ZERO_ADDRESS: Address = '0x0000000000000000000000000000000000000000';
+
 /**
  * Fire-and-forget: sends playGameDelegated tx and returns hash immediately.
  */
@@ -155,8 +171,10 @@ export async function executeDelegatedPlay(params: {
   amount: bigint;
   gameChoice: Hex;
   useCredits: boolean;
+  referrer?: Address;
 }) {
   const seed = buildSeed();
+  const playCode = buildPlayCode(params.player, params.game);
 
   const data = encodeFunctionData({
     abi: abis.router,
@@ -169,11 +187,13 @@ export async function executeDelegatedPlay(params: {
       params.gameChoice,
       seed,
       params.useCredits,
+      playCode,
+      params.referrer ?? ZERO_ADDRESS,
     ],
   });
 
   const hash = await sendRawTx(addresses.gameRouter, data, 'playGameDelegated');
-  return { hash, seed };
+  return { hash, seed, playCode };
 }
 
 /**

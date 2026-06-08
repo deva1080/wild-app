@@ -38,6 +38,8 @@ abstract contract BaseGame is Ownable, IBaseGame {
 
     // ──────────────────── State ────────────────────
 
+    uint256 internal constant NO_GAME_IDENTIFIER = 999_999_999_999;
+
     ITreasury public treasury;
     GameCredits public gameCredits;
     uint256 public explosionRate;
@@ -46,6 +48,7 @@ abstract contract BaseGame is Ownable, IBaseGame {
     mapping(address => bool) public callers;
     mapping(address => TokenConfig) public supportedTokenInfo;
     mapping(address => uint256) public pendingBetId;
+    mapping(address => uint256) public playerSeeds;
 
     uint256 public nextBetId;
     uint256 public totalBetsGlobal;
@@ -81,6 +84,14 @@ abstract contract BaseGame is Ownable, IBaseGame {
         address token
     );
 
+    event LivePayout(
+        address indexed player,
+        address indexed game,
+        address indexed currency,
+        uint256 gameIdentifier,
+        uint256 payout
+    );
+
     // ──────────────────── Errors ────────────────────
 
     error GameNotLive();
@@ -92,6 +103,7 @@ abstract contract BaseGame is Ownable, IBaseGame {
     error BetNotPending();
     error RefundTooEarly();
     error BetDoesNotExist();
+    error InsufficientBalance();
 
     // ──────────────────── Modifiers ────────────────────
 
@@ -111,6 +123,10 @@ abstract contract BaseGame is Ownable, IBaseGame {
         treasury = ITreasury(_treasury);
         nextBetId = 1;
         explosionRate = 4;
+    }
+
+    function setPlayerSeed(uint256 newSeed) external {
+        playerSeeds[msg.sender] = newSeed;
     }
 
     // ──────────────────── Admin ────────────────────
@@ -148,7 +164,7 @@ abstract contract BaseGame is Ownable, IBaseGame {
         uint256 amount,
         address token
     ) external onlyOwner {
-        require(amount <= IERC20(token).balanceOf(address(this)), "Exceeds balance");
+        if (amount > IERC20(token).balanceOf(address(this))) revert InsufficientBalance();
         IERC20(token).transfer(beneficiary, amount);
     }
 
@@ -264,6 +280,40 @@ abstract contract BaseGame is Ownable, IBaseGame {
         (betId, payout) = _executePlayAndSettle(params);
     }
 
+    function previewPlay(
+        bytes calldata gameChoice,
+        address token,
+        uint256 amount,
+        uint256 seed
+    ) external view virtual override returns (uint256 payout, uint256[] memory outcomes) {
+        TokenConfig storage tc = supportedTokenInfo[token];
+        if (tc.maxBetAmount == 0) revert TokenNotConfigured();
+
+        (uint16 betCount, bytes memory specificChoice) = _decodeBaseChoice(gameChoice);
+        if (betCount == 0) revert InvalidBetCount();
+
+        uint256 betAmountPerRoll = amount / uint256(betCount);
+        if (betAmountPerRoll < tc.minBetAmount || betAmountPerRoll > tc.maxBetAmount)
+            revert BetAmountOutOfRange();
+
+        _validateGameChoice(specificChoice);
+
+        uint256 baseRandom = uint256(keccak256(abi.encode(seed)));
+        if (_checkExplosion(baseRandom)) {
+            outcomes = _previewExplosionOutcomes(specificChoice, betCount);
+            return (0, outcomes);
+        }
+
+        outcomes = new uint256[](betCount);
+        for (uint16 i = 0; i < betCount;) {
+            uint256 rollRandom = uint256(keccak256(abi.encode(baseRandom, i)));
+            uint256 rollPayout;
+            (rollPayout, outcomes[i]) = _previewRoll(specificChoice, betAmountPerRoll, rollRandom);
+            payout += rollPayout;
+            unchecked { ++i; }
+        }
+    }
+
     function _executePlayAndSettle(PlayParams calldata params) internal returns (uint256 betId, uint256 payout) {
         TokenConfig storage tc = supportedTokenInfo[params.token];
         if (tc.maxBetAmount == 0) revert TokenNotConfigured();
@@ -333,6 +383,7 @@ abstract contract BaseGame is Ownable, IBaseGame {
 
         BaseBet storage bet = baseBets[betId];
         emit BetSettled(betId, bet.player, bet.token, betAmountPerRoll * betCount, payout, outcomes);
+        _emitLivePayout(betId, payout);
     }
 
     /// @dev Internal: update player stats after settlement.
@@ -356,7 +407,7 @@ abstract contract BaseGame is Ownable, IBaseGame {
         BaseBet storage bet = baseBets[betId];
         if (bet.amount == 0 || bet.resolved) revert BetNotPending();
 
-        uint256 baseRandom = _generateRandom(seed, bet.placeBlockNumber);
+        uint256 baseRandom = _generateRandom(seed, bet.player, bet.placeBlockNumber);
 
         if (_checkExplosion(baseRandom)) {
             bet.resolved = true;
@@ -365,6 +416,7 @@ abstract contract BaseGame is Ownable, IBaseGame {
 
             uint256[] memory explosionResults = _getExplosionOutcomes(betId);
             emit BetSettled(betId, bet.player, bet.token, bet.amount * bet.betCount, 0, explosionResults);
+            _emitLivePayout(betId, 0);
             return;
         }
 
@@ -393,15 +445,18 @@ abstract contract BaseGame is Ownable, IBaseGame {
         }
 
         emit BetSettled(betId, bet.player, bet.token, totalBetAmount, totalPayout, outcomes);
+        _emitLivePayout(betId, totalPayout);
     }
 
     // ──────────────────── Refund ────────────────────
 
-    function refundBet(uint256 betId) external onlyOwner {
+    function refundBet(uint256 betId) external {
         BaseBet storage bet = baseBets[betId];
         if (bet.amount == 0) revert BetDoesNotExist();
         if (bet.resolved) revert BetNotPending();
-        if (block.number <= bet.placeBlockNumber + 21600) revert RefundTooEarly();
+        
+        // Anyone can refund a bet if it's older than 256 blocks (EVM blockhash limit)
+        if (block.number <= bet.placeBlockNumber + 256) revert RefundTooEarly();
 
         uint256 refundAmount = _getRefundAmount(betId);
 
@@ -416,16 +471,28 @@ abstract contract BaseGame is Ownable, IBaseGame {
         }
 
         emit BetRefunded(betId, bet.player, refundAmount, bet.token);
+        _emitLivePayout(betId, refundAmount);
     }
 
     // ──────────────────── Internal: Random ────────────────────
 
-    function _generateRandom(uint256 seed, uint256 placeBlockNumber) internal view returns (uint256) {
+    function _generateRandom(uint256 seed, address player, uint256 placeBlockNumber) internal view returns (uint256) {
+        // We MUST use a blockhash from the past, but not older than 256 blocks.
+        // If it's older than 256 blocks, blockhash returns 0, which is insecure.
+        // The refundBet function handles the case where the bet is too old.
+        require(block.number <= placeBlockNumber + 256, "Blockhash expired, use refundBet");
+        
+        uint256 pSeed = playerSeeds[player];
+        if (pSeed == 0) {
+            pSeed = uint256(uint160(player)); // Default to player address if no seed is set
+        }
+
         return uint256(keccak256(abi.encode(
             seed,
+            pSeed, // Incorporate the user's on-chain seed safely
             block.timestamp,
             block.prevrandao,
-            blockhash(placeBlockNumber)
+            blockhash(placeBlockNumber) // Use the block where the bet was placed
         )));
     }
 
@@ -444,7 +511,22 @@ abstract contract BaseGame is Ownable, IBaseGame {
         return (p.lastBetIds, p.lastBetIdx);
     }
 
+    function _emitLivePayout(uint256 betId, uint256 payout) internal {
+        BaseBet storage bet = baseBets[betId];
+        emit LivePayout(
+            bet.player,
+            address(this),
+            bet.token,
+            _gameIdentifier(betId),
+            payout
+        );
+    }
+
     // ──────────────────── Virtual (game-specific) ────────────────────
+
+    function _gameIdentifier(uint256 /*betId*/) internal view virtual returns (uint256) {
+        return NO_GAME_IDENTIFIER;
+    }
 
     /// @dev Decode betCount + game-specific choice from gameChoice bytes.
     function _decodeBaseChoice(bytes calldata gameChoice)
@@ -467,6 +549,14 @@ abstract contract BaseGame is Ownable, IBaseGame {
 
     /// @dev Return outcomes array for explosion case.
     function _getExplosionOutcomes(uint256 betId)
+        internal view virtual returns (uint256[] memory outcomes);
+
+    /// @dev Preview a single roll using game-specific choice data (no state writes).
+    function _previewRoll(bytes memory specificChoice, uint256 betAmount, uint256 randomWord)
+        internal view virtual returns (uint256 payout, uint256 outcome);
+
+    /// @dev Preview outcomes array for explosion case (no state writes).
+    function _previewExplosionOutcomes(bytes memory specificChoice, uint16 betCount)
         internal view virtual returns (uint256[] memory outcomes);
 
     /// @dev Return the refund amount for a bet (default: full amount * betCount).

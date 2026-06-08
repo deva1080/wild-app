@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { game, player, token: gameToken, amount, gameChoice, useCredits } = body;
+    const { game, player, token: gameToken, amount, gameChoice, useCredits, referrer } = body;
 
-    console.log('[play-delegated] Request:', { game, player, amount, useCredits });
+    console.log('[play-delegated] Request:', { game, player, amount, useCredits, referrer });
 
     if (!game || !player || !gameToken || !amount || !gameChoice) {
       return NextResponse.json(
@@ -32,20 +32,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    const { hash } = await executeDelegatedPlay({
+    const { hash, playCode } = await executeDelegatedPlay({
       game: game as Address,
       player: player as Address,
       token: gameToken as Address,
       amount: BigInt(amount),
       gameChoice: gameChoice as Hex,
       useCredits: Boolean(useCredits),
+      referrer: referrer as Address | undefined,
     });
 
-    console.log('[play-delegated] Tx sent:', hash);
+    console.log('[play-delegated] Tx sent:', hash, 'playCode:', playCode);
 
     return NextResponse.json({
       success: true,
       txHash: hash,
+      playCode,
     });
   } catch (error) {
     console.error('[play-delegated] ERROR:', error instanceof Error ? error.message : error);

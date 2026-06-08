@@ -27,6 +27,9 @@ contract GameCredits is Ownable {
     /// @notice Contracts authorized to spend user credits (GameRouter, games).
     mapping(address => bool) public authorizedSpenders;
 
+    /// @notice Contracts authorized to gift credits (e.g. ReferalRegistry).
+    mapping(address => bool) public authorizedGifters;
+
     /// @notice Total credits ever purchased.
     uint256 public totalCreditsPurchased;
 
@@ -40,12 +43,14 @@ contract GameCredits is Ownable {
     event CreditsSpent(address indexed user, uint256 amount);
     event TokenRatioSet(address indexed token, uint256 ratio, bool allowed);
     event SpenderSet(address indexed spender, bool allowed);
+    event GifterSet(address indexed gifter, bool allowed);
 
     // ──────────────────── Errors ────────────────────
 
     error TokenNotAllowed();
     error InsufficientCredits();
     error NotAuthorizedSpender();
+    error NotAuthorizedGifter();
     error ZeroAmount();
 
     // ──────────────────── Constructor ────────────────────
@@ -89,16 +94,18 @@ contract GameCredits is Ownable {
 
     // ──────────────────── Owner: Admin ────────────────────
 
-    /// @notice Gift credits to a user without requiring token deposit.
-    function giftCredits(address user, uint256 amount) external onlyOwner {
+    /// @notice Gift credits to a user. Callable by owner or authorized gifters (e.g. ReferalRegistry).
+    function giftCredits(address user, uint256 amount) external {
+        if (msg.sender != owner() && !authorizedGifters[msg.sender]) revert NotAuthorizedGifter();
         if (amount == 0) revert ZeroAmount();
         balanceOf[user] += amount;
         totalCreditsGifted += amount;
         emit CreditsGifted(user, amount);
     }
 
-    /// @notice Batch gift credits to multiple users.
-    function batchGiftCredits(address[] calldata users, uint256[] calldata amounts) external onlyOwner {
+    /// @notice Batch gift credits to multiple users. Callable by owner or authorized gifters.
+    function batchGiftCredits(address[] calldata users, uint256[] calldata amounts) external {
+        if (msg.sender != owner() && !authorizedGifters[msg.sender]) revert NotAuthorizedGifter();
         require(users.length == amounts.length, "Length mismatch");
         for (uint256 i = 0; i < users.length;) {
             balanceOf[users[i]] += amounts[i];
@@ -122,6 +129,12 @@ contract GameCredits is Ownable {
     function setSpender(address spender, bool allowed) external onlyOwner {
         authorizedSpenders[spender] = allowed;
         emit SpenderSet(spender, allowed);
+    }
+
+    /// @notice Set authorized gifter (e.g. ReferalRegistry).
+    function setGifter(address gifter, bool allowed) external onlyOwner {
+        authorizedGifters[gifter] = allowed;
+        emit GifterSet(gifter, allowed);
     }
 
     /// @notice Update the WILD token address.

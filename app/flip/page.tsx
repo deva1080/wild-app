@@ -1,22 +1,87 @@
 'use client';
 
 import React, { useState } from 'react';
+import { CircleDollarSign } from 'lucide-react';
 import { useAccount } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
-import { useGamePlay, extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
-import { useDelegatedPlay } from '@/lib/web3/hooks/useDelegatedPlay';
-import { usePreflightCheck } from '@/lib/web3/hooks/usePreflightCheck';
+import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
+import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeFlipChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
 import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { useTxMode } from '@/lib/web3/context/TxModeContext';
+import { PaymentSelector } from '@/components/PaymentSelector';
+import { FastTxToggle } from '@/components/FastTxToggle';
+import { RecentOutcomes } from '@/components/RecentOutcomes';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 
+const CROWN_PATH = "M 72.08 292.75 C71.86,270.58 68.77,242.72 63.93,219.15 C57.85,189.54 45.42,149.67 34.27,124.01 L 32.32 119.52 L 25.41 119.43 C11.09,119.23 1.61,109.93 1.53,96.00 C1.49,87.83 4.78,81.66 11.58,77.15 C26.68,67.16 46.07,76.66 47.72,94.87 C48.20,100.15 47.91,101.65 45.50,106.41 C43.98,109.43 42.11,112.13 41.36,112.41 C38.72,113.43 40.08,116.30 48.50,127.51 C52.92,133.39 58.32,140.19 69.96,154.54 C90.47,179.82 119.29,208.97 128.13,213.38 C132.83,215.72 133.47,215.81 136.03,214.48 C148.39,208.09 166.36,162.16 176.90,110.00 C181.61,86.69 186.38,56.43 185.56,55.10 C185.31,54.69 183.21,53.73 180.90,52.97 C174.79,50.95 167.70,43.62 165.52,37.07 C162.04,26.57 164.92,14.79 172.63,8.02 C183.94,-1.91 199.59,-1.42 210.10,9.20 C223.25,22.49 219.33,44.27 202.36,52.21 C198.86,53.85 196.00,55.52 196.00,55.92 C196.00,57.41 198.99,77.79 200.49,86.50 C210.68,145.80 227.28,195.84 241.86,211.25 C247.38,217.09 250.97,216.51 261.00,208.14 C277.13,194.68 312.23,156.10 327.50,135.03 C328.60,133.51 332.29,128.54 335.70,123.99 L 341.90 115.72 L 338.51 111.58 C334.20,106.32 332.93,102.94 332.87,96.58 C332.79,87.21 338.89,78.03 347.65,74.37 C352.26,72.45 360.06,72.66 365.17,74.87 C381.31,81.83 384.07,103.91 370.15,114.67 C365.69,118.12 356.92,120.52 352.68,119.46 C349.57,118.67 348.52,120.51 341.22,139.50 C327.24,175.84 316.78,216.77 312.60,251.50 C311.16,263.43 309.00,294.02 309.00,302.46 L 309.00 306.00 L 190.60 306.00 L 72.21 306.00 L 72.08 292.75 Z";
+
 // ─── Coin SVG ───────────────────────────────────────────────────────────────
+function CoinSide({ isHeads, size, isBack }: { isHeads: boolean, size: number, isBack: boolean }) {
+  // HEADS: Centro dorado con reborde negro
+  // TAILS: Centro negro con reborde dorado
+  const outerGradient = isHeads
+    ? 'linear-gradient(145deg, #3a3a3a 0%, #111111 50%, #2a2a2a 100%)'
+    : 'linear-gradient(145deg, #debc6e 0%, #8c6825 50%, #debc6e 100%)';
+
+  const innerGradient = isHeads
+    ? 'linear-gradient(145deg, #a87d32 0%, #debc6e 60%, #8c6825 100%)'
+    : 'linear-gradient(145deg, #2a2a2a 0%, #111111 60%, #000000 100%)';
+
+  // Flatter, coin-like shadows instead of a ball
+  const outerBoxShadow = '0 8px 16px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.3), inset 0 -3px 6px rgba(0,0,0,0.5)';
+  const innerBoxShadow = 'inset 0 3px 10px rgba(0,0,0,0.6), 0 1px 2px rgba(255,255,255,0.3)';
+
+  const iconColor = isHeads ? '#111111' : '#debc6e';
+  const textColor = isHeads ? '#111111' : '#debc6e';
+  
+  // Engraved effect for Heads (black on gold), Raised effect for Tails (gold on black)
+  const embossFilter = isHeads 
+    ? 'drop-shadow(-2px -2px 2px rgba(0,0,0,0.7)) drop-shadow(2px 2px 2px rgba(255,255,255,0.4))' 
+    : 'drop-shadow(-2px -2px 2px rgba(255,230,150,0.3)) drop-shadow(3px 3px 4px rgba(0,0,0,0.9))';
+
+  const textEmboss = isHeads
+    ? '-2px -2px 2px rgba(0,0,0,0.7), 2px 2px 2px rgba(255,255,255,0.4)'
+    : '-2px -2px 2px rgba(255,230,150,0.3), 3px 3px 4px rgba(0,0,0,0.9)';
+
+  return (
+    <div
+      className="absolute inset-0 rounded-full flex items-center justify-center select-none"
+      style={{
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        transform: isBack ? 'rotateY(180deg)' : 'rotateY(0deg)',
+      }}
+    >
+      {/* Outer ring */}
+      <div className="absolute inset-0 rounded-full" style={{ background: outerGradient, boxShadow: outerBoxShadow }} />
+      {/* Inner face */}
+      <div className="absolute rounded-full" style={{ inset: '10px', background: innerGradient, boxShadow: innerBoxShadow }} />
+      {/* Icon */}
+      <div className="relative z-10 flex flex-col items-center gap-1 mt-1">
+        <svg width={size * 0.45} height={size * 0.35} viewBox="0 0 381 307" fill={iconColor} style={{ filter: embossFilter }}>
+          <path d={CROWN_PATH} />
+        </svg>
+        <span
+          className="font-black tracking-widest uppercase mt-1"
+          style={{ 
+            fontSize: size * 0.085, 
+            color: textColor, 
+            letterSpacing: '0.15em',
+            textShadow: textEmboss
+          }}
+        >
+          {isHeads ? 'HEADS' : 'TAILS'}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function CoinFace({
   side,
   size = 220,
@@ -31,47 +96,20 @@ function CoinFace({
       style={{
         width: size,
         height: size,
-        animation: spinning ? 'coinSpinFast 0.55s linear infinite' : undefined,
+        perspective: '1000px',
       }}
-      className="relative rounded-full flex items-center justify-center select-none"
+      className="relative select-none"
     >
-      {/* Outer ring glow */}
       <div
-        className="absolute inset-0 rounded-full"
+        className="w-full h-full relative transition-transform duration-700 ease-in-out"
         style={{
-          background: 'radial-gradient(circle at 38% 32%, #ffe066 0%, #c8920a 55%, #7a4e00 100%)',
-          boxShadow: '0 0 60px 10px rgba(200,146,10,0.35), 0 0 0 6px rgba(200,146,10,0.18), inset 0 2px 8px rgba(255,230,100,0.4)',
+          transformStyle: 'preserve-3d',
+          transform: `rotateY(${side === 1 ? 180 : 0}deg)`,
+          animation: spinning ? 'coinSpinFast 0.55s linear infinite' : 'none',
         }}
-      />
-      {/* Inner circle */}
-      <div
-        className="absolute rounded-full"
-        style={{
-          inset: '14px',
-          background: 'radial-gradient(circle at 36% 30%, #f5d060 0%, #b87c0a 60%, #7a4e00 100%)',
-        }}
-      />
-      {/* Icon */}
-      <div className="relative z-10 flex flex-col items-center gap-1">
-        {side === 0 ? (
-          <svg width={size * 0.38} height={size * 0.32} viewBox="0 0 48 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M4 36h40M4 36L8 14l10 10L24 6l6 18 10-10 4 22H4z" stroke="#7a4e00" strokeWidth="3" strokeLinejoin="round" fill="rgba(255,200,50,0.25)" />
-            <circle cx="4" cy="14" r="3" fill="#7a4e00" />
-            <circle cx="24" cy="6" r="3" fill="#7a4e00" />
-            <circle cx="44" cy="14" r="3" fill="#7a4e00" />
-          </svg>
-        ) : (
-          <svg width={size * 0.32} height={size * 0.32} viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="18" stroke="#7a4e00" strokeWidth="4" />
-            <circle cx="24" cy="24" r="8" fill="#7a4e00" opacity="0.3" />
-          </svg>
-        )}
-        <span
-          className="font-black tracking-widest uppercase"
-          style={{ fontSize: size * 0.085, color: '#7a4e00', letterSpacing: '0.15em' }}
-        >
-          {side === 0 ? 'HEADS' : 'TAILS'}
-        </span>
+      >
+        <CoinSide isHeads={true} size={size} isBack={false} />
+        <CoinSide isHeads={false} size={size} isBack={true} />
       </div>
     </div>
   );
@@ -80,12 +118,9 @@ function CoinFace({
 // ─── Page ───────────────────────────────────────────────────────────────────
 export default function FlipPage() {
   const { address } = useAccount();
-  const { wildBalance, pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.flip);
-  const { playStandard, requestSettle, requestDelegatedPlay } = useGamePlay();
-  const { authorizedPlays, setupDelegatedPlay } = useDelegatedPlay();
-  const { check } = usePreflightCheck();
+  const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.flip);
   const result = useGameResultFlow();
-  const { mode: txMode } = useTxMode();
+  const bet = useBetController(addresses.games.flip);
 
   const [side, setSide] = useState<0 | 1>(0);
   const [amount, setAmount] = useState('1');
@@ -95,7 +130,7 @@ export default function FlipPage() {
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
       ? contractPendingBet
       : null;
-  const balStr = wildBalance ? Number(formatEther(wildBalance as bigint)).toFixed(2) : '0.00';
+  const fmtAmt = (v: bigint) => Number(formatUnits(v, bet.decimals)).toFixed(2);
 
   const resultPhase = result.state?.phase ?? 'idle';
   const resultPayout = result.state?.phase === 'result' ? result.state.payout : undefined;
@@ -125,29 +160,10 @@ export default function FlipPage() {
 
     setLoading(true);
     try {
-      const gameChoice = encodeFlipChoice(side, 1);
-      const weiAmount = parseEther(amount);
-
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.flip); return; }
 
-      if (txMode !== 'delegated') {
-        const issues = await check(addresses.games.flip, weiAmount);
-        const errors = issues.filter((i) => i.level === 'error');
-        if (errors.length > 0) { result.error(errors.map((e) => e.message).join('\n')); return; }
-      }
-
-      if (txMode === 'delegated') {
-        result.startPlacing();
-        if (!authorizedPlays || authorizedPlays === BigInt(0)) await setupDelegatedPlay(BigInt(100));
-        const txHash = await requestDelegatedPlay(addresses.games.flip, address, addresses.wildToken, weiAmount, gameChoice, false);
-        await result.waitForDelegatedTx(txHash);
-      } else {
-        result.startPlacing();
-        const playResult = await playStandard(addresses.games.flip, gameChoice, weiAmount);
-        result.betPlaced(playResult.betId, playResult.gameAddress);
-        const settleTxHash = await requestSettle(playResult.gameAddress, playResult.betId);
-        await result.waitForSettleTx(settleTxHash);
-      }
+      const gameChoice = encodeFlipChoice(side, 1);
+      await bet.play(gameChoice, amount, result, setAmount);
       refetchAll();
     } catch (e: unknown) {
       result.error(extractRevertReason(e));
@@ -180,38 +196,41 @@ export default function FlipPage() {
   return (
     <div className="flex flex-col h-full">
 
+      {/* Global gradient defs for lucide icon strokes */}
+      <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
+        <defs>
+          <linearGradient id="gold-icon-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#debc6e" />
+            <stop offset="100%" stopColor="#8c6825" />
+          </linearGradient>
+        </defs>
+      </svg>
+
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <div
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black tracking-wide"
-          style={{
-            border: '2px solid transparent',
-            backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
-            backgroundOrigin: 'border-box',
-            backgroundClip: 'padding-box, border-box',
-            boxShadow: '0 0 12px rgba(222,188,110,0.15)',
-          }}
-        >
-          <span
-            style={{
-              background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+        <PaymentSelector disabled={isSpinning} />
+
+        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+          <RecentOutcomes 
+            gameAddress={addresses.games.flip}
+            renderOutcome={(o, i) => {
+              // Flip: 0 = Heads, 1 = Tails
+              const isHeads = o === 0;
+              return (
+                <div 
+                  className={`w-6 h-6 rounded-full flex items-center justify-center border font-bold text-[10px] mx-0.5
+                    ${isHeads 
+                      ? 'bg-amber-400/20 text-amber-200 border-amber-400/50' 
+                      : 'bg-zinc-800 text-zinc-300 border-zinc-600'}`}
+                >
+                  {isHeads ? 'H' : 'T'}
+                </div>
+              );
             }}
-          >$WILD</span>
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
-            <defs><linearGradient id="chevron-grad-flip" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
-            <path stroke="url(#chevron-grad-flip)" d="m6 9 6 6 6-6"/>
-          </svg>
+          />
         </div>
 
-        <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-zinc-600">
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-3 h-3 ${txMode === 'delegated' ? 'text-amber-400' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-          {txMode === 'delegated' ? <span className="text-amber-400">Fast TX</span> : 'Standard TX'}
-        </div>
+        <FastTxToggle disabled={isSpinning} />
       </div>
 
       {/* ── Pending bet banner ── */}
@@ -228,17 +247,41 @@ export default function FlipPage() {
           <div className="w-72 h-72 rounded-full bg-amber-500/6 blur-3xl" />
         </div>
 
-        {/* Decorative shadow coins */}
-        {!isSpinning && !isResult && (
-          <>
-            <div className="absolute left-[8%] top-1/2 -translate-y-1/2 opacity-10">
-              <CoinFace side={1} size={110} />
+        {/* Falling coin comets */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {[
+            { size: 18, left: '12%', delay: '0s', dur: '6s', angle: 15, spinDur: '2.2s' },
+            { size: 14, left: '28%', delay: '1.8s', dur: '7s', angle: -10, spinDur: '1.8s' },
+            { size: 22, left: '72%', delay: '0.5s', dur: '5.5s', angle: 20, spinDur: '2.5s' },
+            { size: 12, left: '85%', delay: '3s', dur: '8s', angle: -18, spinDur: '1.5s' },
+            { size: 16, left: '50%', delay: '2.5s', dur: '6.5s', angle: 12, spinDur: '2s' },
+            { size: 10, left: '38%', delay: '4s', dur: '7.5s', angle: -8, spinDur: '1.2s' },
+            { size: 20, left: '92%', delay: '1s', dur: '5s', angle: 25, spinDur: '3s' },
+            { size: 13, left: '5%', delay: '3.5s', dur: '6.8s', angle: -22, spinDur: '1.7s' },
+          ].map((c, i) => (
+            <div
+              key={i}
+              className="absolute opacity-[0.12]"
+              style={{
+                left: c.left,
+                top: '-30px',
+                width: c.size,
+                height: c.size,
+                animation: `coinFall ${c.dur} linear ${c.delay} infinite`,
+                transform: `rotate(${c.angle}deg)`,
+              }}
+            >
+              <div
+                className="w-full h-full rounded-full"
+                style={{
+                  background: 'linear-gradient(145deg, #debc6e 0%, #8c6825 50%, #debc6e 100%)',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.4)',
+                  animation: `coinSpinFast ${c.spinDur} linear infinite`,
+                }}
+              />
             </div>
-            <div className="absolute right-[8%] top-1/2 -translate-y-1/2 opacity-10">
-              <CoinFace side={1} size={90} />
-            </div>
-          </>
-        )}
+          ))}
+        </div>
 
         {/* Coin — always visible */}
         <div className="relative z-10">
@@ -266,12 +309,12 @@ export default function FlipPage() {
             </div>
             {isWin && resultPayout !== undefined && (
               <p className="text-xl font-bold text-green-300">
-                +{Number(formatEther(resultPayout)).toFixed(2)} <span className="text-green-400/60 text-sm">WILD</span>
+                +{fmtAmt(resultPayout)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
               </p>
             )}
             {!isWin && resultTotalBet !== undefined && (
               <p className="text-base text-zinc-400">
-                −{Number(formatEther(resultTotalBet)).toFixed(2)} WILD
+                −{fmtAmt(resultTotalBet)} {bet.meta.symbol}
               </p>
             )}
           </div>
@@ -313,27 +356,36 @@ export default function FlipPage() {
               >Bet Amount</p>
 
               <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
-                <span className="text-amber-400 text-lg font-black">$</span>
+                <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-icon-grad)" strokeWidth={2} />
                 <input
                   type="number"
                   min="0.01"
                   step="0.01"
                   value={amount}
                   disabled={isSpinning}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    if (result.state !== null) result.close();
+                    setAmount(e.target.value);
+                  }}
                   className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
                   <button
                     disabled={isSpinning}
-                    onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                    onClick={() => {
+                      if (result.state !== null) result.close();
+                      setAmount((v) => (parseFloat(v) + 1).toFixed(2));
+                    }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
                   <button
                     disabled={isSpinning}
-                    onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                    onClick={() => {
+                      if (result.state !== null) result.close();
+                      setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2));
+                    }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -342,14 +394,17 @@ export default function FlipPage() {
               </div>
 
               <div className="grid grid-cols-3 gap-1.5">
-                {[...CHIP_VALUES, ...(wildBalance ? ['MAX'] : [])].map((v) => {
-                  const val = v === 'MAX' ? Number(formatEther(wildBalance as bigint)).toFixed(2) : v;
+                {[...CHIP_VALUES, ...(bet.balanceWei ? ['MAX'] : [])].map((v) => {
+                  const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val || (v !== 'MAX' && amount === v);
                   return (
                     <button
                       key={v}
                       disabled={isSpinning}
-                      onClick={() => setAmount(val)}
+                      onClick={() => {
+                        if (result.state !== null) result.close();
+                        setAmount(val);
+                      }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>
@@ -359,9 +414,9 @@ export default function FlipPage() {
             </div>
 
             {/* Column 2: CHOOSE SIDE */}
-            <div className="p-4 flex flex-col items-center justify-center gap-3 border-x border-amber-400/10">
+            <div className="p-4 flex flex-col gap-3 border-x border-amber-400/10 h-full">
               <p
-                className="text-sm font-black uppercase tracking-widest"
+                className="text-sm font-black uppercase tracking-widest text-center"
                 style={{
                   background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                   WebkitBackgroundClip: 'text',
@@ -370,41 +425,57 @@ export default function FlipPage() {
                   color: 'transparent',
                 }}
               >Choose Side</p>
-              <div className="flex items-center gap-3 w-full">
+              <div className="flex items-center gap-3 w-full flex-1">
                 <button
                   disabled={isSpinning}
-                  onClick={() => setSide(0)}
-                  className={`flex-1 py-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  onClick={() => {
+                    if (result.state !== null) result.close();
+                    setSide(0);
+                  }}
+                  className={`flex-1 h-full rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 0
-                      ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_0_20px_rgba(222,188,110,0.15)]'
+                      ? 'border-[#debc6e] bg-[linear-gradient(145deg,#a87d32_0%,#debc6e_60%,#8c6825_100%)] shadow-[0_0_20px_rgba(222,188,110,0.25)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
                   }`}
                 >
-                  <svg width="22" height="18" viewBox="0 0 48 40" fill="none">
-                    <path d="M4 36h40M4 36L8 14l10 10L24 6l6 18 10-10 4 22H4z" stroke={side === 0 ? '#debc6e' : '#52525b'} strokeWidth="3" strokeLinejoin="round" fill={side === 0 ? 'rgba(222,188,110,0.2)' : 'none'}/>
-                    <circle cx="4" cy="14" r="3" fill={side === 0 ? '#debc6e' : '#52525b'}/>
-                    <circle cx="24" cy="6" r="3" fill={side === 0 ? '#debc6e' : '#52525b'}/>
-                    <circle cx="44" cy="14" r="3" fill={side === 0 ? '#debc6e' : '#52525b'}/>
+                  <svg 
+                    width="36" height="29" viewBox="0 0 381 307" 
+                    fill={side === 0 ? '#111111' : '#52525b'}
+                    style={{ filter: side === 0 ? 'drop-shadow(-1px -1px 1px rgba(0,0,0,0.6)) drop-shadow(1px 1px 1px rgba(255,255,255,0.4))' : 'none' }}
+                  >
+                    <path d={CROWN_PATH} />
                   </svg>
-                  <span className={`text-[10px] font-bold tracking-wider ${side === 0 ? 'text-amber-300' : 'text-zinc-500'}`}>HEADS</span>
+                  <span 
+                    className={`text-sm font-black tracking-wider ${side === 0 ? 'text-[#111111]' : 'text-zinc-500'}`}
+                    style={{ textShadow: side === 0 ? '-1px -1px 1px rgba(0,0,0,0.6), 1px 1px 1px rgba(255,255,255,0.4)' : 'none' }}
+                  >HEADS</span>
                 </button>
 
-                <span className="text-zinc-600 text-xs font-bold">vs</span>
+                <span className="text-zinc-600 text-sm font-bold">vs</span>
 
                 <button
                   disabled={isSpinning}
-                  onClick={() => setSide(1)}
-                  className={`flex-1 py-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  onClick={() => {
+                    if (result.state !== null) result.close();
+                    setSide(1);
+                  }}
+                  className={`flex-1 h-full rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 1
-                      ? 'border-zinc-400 bg-zinc-500/15 shadow-[0_0_20px_rgba(161,161,170,0.12)]'
+                      ? 'border-[#debc6e] bg-[#111111] shadow-[0_0_20px_rgba(222,188,110,0.15)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
                   }`}
                 >
-                  <svg width="22" height="22" viewBox="0 0 48 48" fill="none">
-                    <circle cx="24" cy="24" r="18" stroke={side === 1 ? '#a1a1aa' : '#52525b'} strokeWidth="4"/>
-                    <circle cx="24" cy="24" r="8" fill={side === 1 ? 'rgba(161,161,170,0.25)' : 'none'}/>
+                  <svg 
+                    width="36" height="29" viewBox="0 0 381 307" 
+                    fill={side === 1 ? '#debc6e' : '#52525b'}
+                    style={{ filter: side === 1 ? 'drop-shadow(-1px -1px 1px rgba(255,230,150,0.3)) drop-shadow(1px 1px 2px rgba(0,0,0,0.9))' : 'none' }}
+                  >
+                    <path d={CROWN_PATH} />
                   </svg>
-                  <span className={`text-[10px] font-bold tracking-wider ${side === 1 ? 'text-zinc-300' : 'text-zinc-500'}`}>TAILS</span>
+                  <span 
+                    className={`text-sm font-black tracking-wider ${side === 1 ? 'text-[#debc6e]' : 'text-zinc-500'}`}
+                    style={{ textShadow: side === 1 ? '-1px -1px 1px rgba(255,230,150,0.3), 1px 1px 2px rgba(0,0,0,0.9)' : 'none' }}
+                  >TAILS</span>
                 </button>
               </div>
             </div>
@@ -425,13 +496,12 @@ export default function FlipPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="url(#flip-btn-grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <defs><linearGradient id="flip-btn-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
-                  <circle cx="12" cy="12" r="8" stroke="url(#flip-btn-grad)" strokeWidth="1.8"/>
-                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M9 9.5a4 4 0 0 1 6 0"/>
-                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M15 14.5a4 4 0 0 1-6 0"/>
-                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M9 8l0 2-2 0"/>
-                  <path stroke="url(#flip-btn-grad)" strokeWidth="1.8" d="M15 16l0-2 2 0"/>
+                  <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                  <path d="M21 3v5h-5"/>
+                  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+                  <path d="M8 16H3v5"/>
                 </svg>
                 <span
                   className="font-black text-4xl tracking-[0.15em]"

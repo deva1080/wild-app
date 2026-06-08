@@ -48,9 +48,9 @@ export function GlobalEventListeners() {
       } catch { /* unsupported event */ }
     }
 
-    // Per-game events — single watcher polling all events
+    // Per-game events
     for (const game of GAME_CONTRACTS) {
-      for (const eventName of ['BetPlaced', 'BetSettled'] as const) {
+      for (const eventName of ['BetPlaced', 'BetSettled', 'LivePayout', 'BetRefunded'] as const) {
         try {
           const unwatch = publicClient.watchContractEvent({
             address: game.address,

@@ -3,14 +3,56 @@
 import { useWriteContract, useAccount, usePublicClient } from 'wagmi';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
-import { Address, decodeEventLog, erc20Abi, Hex, maxUint256, ContractFunctionRevertedError } from 'viem';
+import { Address, decodeEventLog, erc20Abi, Hex, maxUint256, ContractFunctionRevertedError, BaseError } from 'viem';
+
+const ERROR_HINTS: Record<string, string> = {
+  GameNotLive: 'Fix: game.setGameIsLive(true)',
+  TokenNotConfigured: 'Fix: game.setTokenConfig(tokenAddr, minBet, maxBet, houseEdgeBP)',
+  InvalidBetCount: 'betCount == 0 en gameChoice',
+  BetAmountOutOfRange: 'Fix: revisar game.supportedTokenInfo(token) → min/maxBetAmount',
+  CallerNotAllowed: 'Fix: game.setCaller(gameRouterAddr, true)',
+  PlayerHasPendingBet: 'El player tiene un betId pendiente sin settle/refund',
+  BetNotPending: 'El bet ya fue resuelto o no existe',
+  RefundTooEarly: 'Deben pasar 256 bloques desde placeBlockNumber',
+  BetDoesNotExist: 'betId inválido, baseBets[betId].amount == 0',
+  InsufficientBalance: 'IERC20.balanceOf(contract) < amount',
+  NotAuthorizedContract: 'Fix: treasury.authorizeContract(gameRouterAddr, true)',
+  TokenNotAccepted: 'Fix: treasury.setAcceptedToken(tokenAddr, true)',
+  ZeroAmount: 'amount == 0',
+  InvalidRecipient: 'recipient == address(0)',
+  GameNotRegistered: 'Fix: gameRouter.registerGame(gameAddr, true)',
+  NoAuthorizedPlays: 'Fix: gameRouter.authorizePlays(N) — el player no tiene plays',
+  NotAuthorizedCaller: 'Fix: gameRouter.setCaller(backendWallet, true)',
+  MultiplierNotInRange: 'Fix: revisar game.minMultiplier() / maxMultiplier()',
+  InvalidSide: 'side > 1 (Flip) o side > 2 (RPS)',
+};
+
+function findRevertError(err: unknown): ContractFunctionRevertedError | null {
+  if (err instanceof ContractFunctionRevertedError) return err;
+  if (err instanceof BaseError && err.walk) {
+    const found = err.walk((e) => e instanceof ContractFunctionRevertedError);
+    if (found instanceof ContractFunctionRevertedError) return found;
+  }
+  if (err instanceof Error && 'cause' in err) {
+    return findRevertError((err as Error & { cause?: unknown }).cause);
+  }
+  return null;
+}
 
 export function extractRevertReason(error: unknown): string {
-  if (error instanceof ContractFunctionRevertedError) {
-    const name = error.data?.errorName;
-    const args = error.data?.args ? JSON.stringify(error.data.args) : '';
-    if (name) return args ? `${name}(${args})` : name;
-    if (error.reason) return error.reason;
+  const revertErr = findRevertError(error);
+  if (revertErr) {
+    const name = revertErr.data?.errorName;
+    if (name) {
+      const args = revertErr.data?.args ? `(${JSON.stringify(revertErr.data.args)})` : '()';
+      const hint = ERROR_HINTS[name] ? ` → ${ERROR_HINTS[name]}` : '';
+      return `${name}${args}${hint}`;
+    }
+    if (revertErr.reason) return revertErr.reason;
+  }
+
+  if (error instanceof BaseError) {
+    return error.shortMessage ?? error.message;
   }
   if (error instanceof Error) {
     return (error as Error & { shortMessage?: string }).shortMessage ?? error.message;
@@ -23,6 +65,8 @@ export type PlayResult = {
   gameAddress: Address;
   playTxHash: Hex;
 };
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
 
 export function useGamePlay() {
   const { address } = useAccount();
@@ -126,7 +170,7 @@ export function useGamePlay() {
 
   /**
    * Fire-and-forget: ask the backend to execute a delegated play.
-   * Returns the txHash immediately.
+   * Returns the txHash and playCode for event correlation.
    */
   const requestDelegatedPlay = async (
     gameAddress: Address,
@@ -134,8 +178,9 @@ export function useGamePlay() {
     token: Address,
     amount: bigint,
     gameChoice: Hex,
-    useCredits: boolean
-  ): Promise<Hex> => {
+    useCredits: boolean,
+    referrer: Address = ZERO_ADDRESS,
+  ): Promise<{ txHash: Hex; playCode: Hex }> => {
     const response = await fetch('/api/play-delegated', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -146,6 +191,7 @@ export function useGamePlay() {
         amount: amount.toString(),
         gameChoice,
         useCredits,
+        referrer,
       }),
     });
 
@@ -155,18 +201,25 @@ export function useGamePlay() {
     }
 
     const data = await response.json();
-    return data.txHash as Hex;
+    return { txHash: data.txHash as Hex, playCode: data.playCode as Hex };
   };
 
   /**
    * Mode 1: Standard Play — approve(GameRouter) + playGame
    * Returns betId and txHash. Does NOT settle — caller handles that.
+   * token defaults to wildToken, referrer defaults to zero address.
    */
-  const playStandard = async (gameAddress: Address, gameChoice: Hex, amount: bigint): Promise<PlayResult> => {
+  const playStandard = async (
+    gameAddress: Address,
+    gameChoice: Hex,
+    amount: bigint,
+    token: Address = addresses.wildToken,
+    referrer: Address = ZERO_ADDRESS,
+  ): Promise<PlayResult> => {
     if (!address || !publicClient) throw new Error('Wallet no conectada');
 
     const allowance = await publicClient.readContract({
-      address: addresses.wildToken,
+      address: token,
       abi: erc20Abi,
       functionName: 'allowance',
       args: [address, addresses.gameRouter],
@@ -174,26 +227,19 @@ export function useGamePlay() {
 
     if (allowance < amount) {
       await writeContractAsync({
-        address: addresses.wildToken,
+        address: token,
         abi: erc20Abi,
         functionName: 'approve',
         args: [addresses.gameRouter, maxUint256],
       });
     }
 
-    await publicClient.simulateContract({
-      account: address,
-      address: addresses.gameRouter,
-      abi: abis.router,
-      functionName: 'playGame',
-      args: [gameAddress, gameChoice, addresses.wildToken, amount],
-    });
-
     const tx = await writeContractAsync({
       address: addresses.gameRouter,
       abi: abis.router,
       functionName: 'playGame',
-      args: [gameAddress, gameChoice, addresses.wildToken, amount],
+      args: [gameAddress, gameChoice, token, amount, referrer],
+      gas: 500_000n,
     });
 
     const { betId } = await extractBetFromReceipt(tx, 'GamePlayed');
@@ -202,22 +248,32 @@ export function useGamePlay() {
 
   /**
    * Mode 2: Credits — purchase credits
+   * token defaults to wildToken.
    */
-  const purchaseCredits = async (amount: bigint) => {
+  const purchaseCredits = async (amount: bigint, token: Address = addresses.wildToken) => {
     if (!address) throw new Error('Wallet no conectada');
 
-    await writeContractAsync({
-      address: addresses.wildToken,
+    const allowance = await publicClient!.readContract({
+      address: token,
       abi: erc20Abi,
-      functionName: 'approve',
-      args: [addresses.gameCredits, amount],
+      functionName: 'allowance',
+      args: [address, addresses.gameCredits],
     });
+
+    if (allowance < amount) {
+      await writeContractAsync({
+        address: token,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [addresses.gameCredits, amount],
+      });
+    }
 
     return writeContractAsync({
       address: addresses.gameCredits,
       abi: abis.credits,
       functionName: 'purchaseCredits',
-      args: [addresses.wildToken, amount],
+      args: [token, amount],
     });
   };
 
@@ -225,22 +281,20 @@ export function useGamePlay() {
    * Mode 2: Play with credits.
    * Returns betId and txHash. Does NOT settle — caller handles that.
    */
-  const playWithCredits = async (gameAddress: Address, gameChoice: Hex, creditAmount: bigint): Promise<PlayResult> => {
+  const playWithCredits = async (
+    gameAddress: Address,
+    gameChoice: Hex,
+    creditAmount: bigint,
+    referrer: Address = ZERO_ADDRESS,
+  ): Promise<PlayResult> => {
     if (!address || !publicClient) throw new Error('Wallet no conectada');
-
-    await publicClient.simulateContract({
-      account: address,
-      address: addresses.gameRouter,
-      abi: abis.router,
-      functionName: 'playGameWithCredits',
-      args: [gameAddress, gameChoice, creditAmount],
-    });
 
     const tx = await writeContractAsync({
       address: addresses.gameRouter,
       abi: abis.router,
       functionName: 'playGameWithCredits',
-      args: [gameAddress, gameChoice, creditAmount],
+      args: [gameAddress, gameChoice, creditAmount, referrer],
+      gas: 500_000n,
     });
 
     const { betId } = await extractBetFromReceipt(tx, 'GamePlayedWithCredits');

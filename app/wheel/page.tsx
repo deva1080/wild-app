@@ -1,19 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useAccount, usePublicClient } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { useAccount } from 'wagmi';
+import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
-import { useGamePlay, extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
-import { useDelegatedPlay } from '@/lib/web3/hooks/useDelegatedPlay';
-import { usePreflightCheck } from '@/lib/web3/hooks/usePreflightCheck';
+import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
+import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { useWheelConfig } from '@/lib/web3/hooks/useWheelConfig';
 import { encodeWheelChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
 import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { useTxMode } from '@/lib/web3/context/TxModeContext';
+import { PaymentSelector } from '@/components/PaymentSelector';
+import { FastTxToggle } from '@/components/FastTxToggle';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 
@@ -144,13 +144,9 @@ function WheelSVG({ multipliers, rotation }: WheelSVGProps) {
 
 export default function WheelPage() {
   const { address } = useAccount();
-  const publicClient = usePublicClient();
-  const { wildBalance, pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.wheel);
-  const { playStandard, requestSettle, requestDelegatedPlay } = useGamePlay();
-  const { authorizedPlays, setupDelegatedPlay } = useDelegatedPlay();
-  const { check } = usePreflightCheck();
+  const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.wheel);
   const result = useGameResultFlow();
-  const { mode: txMode } = useTxMode();
+  const bet = useBetController(addresses.games.wheel);
   const { config, isLoading: isLoadingConfig } = useWheelConfig(0);
 
   const [amount, setAmount] = useState('1');
@@ -167,7 +163,7 @@ export default function WheelPage() {
   const animStartedRef = useRef(false);
 
   const pendingBetId = contractPendingBet && contractPendingBet !== BigInt(0) ? contractPendingBet : null;
-  const balStr = wildBalance ? Number(formatEther(wildBalance as bigint)).toFixed(2) : '0.00';
+  const fmtAmt = (v: bigint) => Number(formatUnits(v, bet.decimals)).toFixed(2);
 
   const resultPhase = result.state?.phase ?? 'idle';
   const isWin = result.state?.phase === 'result' && result.state.payout > BigInt(0);
@@ -269,9 +265,6 @@ export default function WheelPage() {
     startInfiniteSpin();
 
     try {
-      const gameChoice = encodeWheelChoice(config.configId, 1, BigInt(0), BigInt(0));
-      const weiAmount = parseEther(amount);
-
       if (pendingBetId) {
         result.stuck(pendingBetId as bigint, addresses.games.wheel);
         setLoading(false);
@@ -280,50 +273,8 @@ export default function WheelPage() {
         return;
       }
 
-      if (txMode !== 'delegated') {
-        const issues = await check(addresses.games.wheel, weiAmount);
-        const errors = issues.filter((i) => i.level === 'error');
-        if (errors.length > 0) {
-          result.error(errors.map((e) => e.message).join('\n'));
-          setLoading(false);
-          cancelAnimationFrame(rafRef.current);
-          setIsSpinning(false);
-          return;
-        }
-      }
-
-      if (txMode === 'delegated') {
-        const balanceBefore = publicClient ? await publicClient.readContract({
-          address: addresses.wildToken,
-          abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }],
-          functionName: 'balanceOf',
-          args: [address],
-        }) as bigint : BigInt(0);
-        console.log('[Balance Debug] BEFORE play - balance:', formatEther(balanceBefore), 'WILD, bet:', amount, 'WILD');
-        
-        result.startPlacing();
-        if (!authorizedPlays || authorizedPlays === BigInt(0)) await setupDelegatedPlay(BigInt(100));
-        const txHash = await requestDelegatedPlay(addresses.games.wheel, address, addresses.wildToken, weiAmount, gameChoice, false);
-        await result.waitForDelegatedTx(txHash);
-        
-        const balanceAfter = publicClient ? await publicClient.readContract({
-          address: addresses.wildToken,
-          abi: [{ name: 'balanceOf', type: 'function', stateMutability: 'view', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }] }],
-          functionName: 'balanceOf',
-          args: [address],
-        }) as bigint : BigInt(0);
-        const diff = balanceAfter - balanceBefore;
-        console.log('[Balance Debug] AFTER play - balance:', formatEther(balanceAfter), 'WILD');
-        console.log('[Balance Debug] DIFF:', diff >= 0 ? '+' : '', formatEther(diff), 'WILD (positive = win, negative = loss)');
-        
-        refetchAll();
-      } else {
-        result.startPlacing();
-        const playResult = await playStandard(addresses.games.wheel, gameChoice, weiAmount);
-        result.betPlaced(playResult.betId, playResult.gameAddress);
-        const settleTxHash = await requestSettle(playResult.gameAddress, playResult.betId);
-        await result.waitForSettleTx(settleTxHash);
-      }
+      const gameChoice = encodeWheelChoice(config.configId, 1, BigInt(0), BigInt(0));
+      await bet.play(gameChoice, amount, result, setAmount);
       refetchAll();
     } catch (e: unknown) {
       result.error(extractRevertReason(e));
@@ -381,37 +332,10 @@ export default function WheelPage() {
     <div className="flex flex-col h-full">
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <div
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black tracking-wide"
-          style={{
-            border: '2px solid transparent',
-            backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
-            backgroundOrigin: 'border-box',
-            backgroundClip: 'padding-box, border-box',
-            boxShadow: '0 0 12px rgba(222,188,110,0.15)',
-          }}
-        >
-          <span
-            style={{
-              background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >$WILD</span>
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
-            <defs><linearGradient id="chevron-grad-wheel" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
-            <path stroke="url(#chevron-grad-wheel)" d="m6 9 6 6 6-6"/>
-          </svg>
-        </div>
-
-        <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-zinc-600">
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-3 h-3 ${txMode === 'delegated' ? 'text-amber-400' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-          {txMode === 'delegated' ? <span className="text-amber-400">Fast TX</span> : 'Standard TX'}
-        </div>
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+        <PaymentSelector disabled={isPlaying} />
+        <div className="flex-1" />
+        <FastTxToggle disabled={isPlaying} />
       </div>
 
       {/* ── Pending bet banner ── */}
@@ -452,12 +376,12 @@ export default function WheelPage() {
             </div>
             {isWin && resultPayout !== undefined && (
               <p className="text-xl font-bold text-green-300">
-                +{Number(formatEther(resultPayout)).toFixed(2)} <span className="text-green-400/60 text-sm">WILD</span>
+                +{fmtAmt(resultPayout)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
               </p>
             )}
             {!isWin && resultTotalBet !== undefined && (
               <p className="text-base text-zinc-400">
-                −{Number(formatEther(resultTotalBet)).toFixed(2)} WILD
+                −{fmtAmt(resultTotalBet)} {bet.meta.symbol}
               </p>
             )}
             <button
@@ -536,8 +460,8 @@ export default function WheelPage() {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-1.5">
-                {[...CHIP_VALUES, ...(wildBalance ? ['MAX'] : [])].map((v) => {
-                  const val = v === 'MAX' ? Number(formatEther(wildBalance as bigint)).toFixed(2) : v;
+                {[...CHIP_VALUES, ...(bet.balanceWei ? ['MAX'] : [])].map((v) => {
+                  const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val || (v !== 'MAX' && amount === v);
                   return (
                     <button

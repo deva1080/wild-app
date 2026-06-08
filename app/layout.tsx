@@ -30,6 +30,7 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${geistMono.variable} ${bebasNeue.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -39,7 +40,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col font-sans">
+      <body className="min-h-full flex flex-col font-sans" suppressHydrationWarning>
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

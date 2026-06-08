@@ -24,18 +24,22 @@ contract TreasuryTest is Ownable {
     mapping(address => bool) public authorizedContracts;
     mapping(address contractAddress=>mapping(address token => GameStats)) public gameStats; 
 
-   
-
-
     // Eventos
     event TokenAccepted(address indexed token, bool status);
     event ContractAuthorized(address indexed gameContract, bool status);
     event TokensDeposited(address indexed gameContract, address indexed token, uint256 amount);
     event TokensWithdrawn(address indexed gameContract, address indexed recipient, address indexed token, uint256 amount);
 
+    // Errores Custom
+    error NotAuthorizedContract();
+    error TokenNotAccepted();
+    error ZeroAmount();
+    error InvalidRecipient();
+    error InsufficientBalance();
+
     // Modificador para contratos autorizados
     modifier onlyAuthorized() {
-        require(authorizedContracts[msg.sender], "Not an authorized contract");
+        if (!authorizedContracts[msg.sender]) revert NotAuthorizedContract();
         _;
     }
 
@@ -88,9 +92,8 @@ contract TreasuryTest is Ownable {
 
     // Depósito de tokens por parte de un contrato de juego
     function depositTokens(address token, uint256 amount) external onlyAuthorized {
-        require(acceptedTokens[token], "Token not accepted");
-        require(amount > 0, "Amount must be greater than zero");
-        require(amount <= IERC20(token).balanceOf(address(this)));
+        if (!acceptedTokens[token]) revert TokenNotAccepted();
+        if (amount == 0) revert ZeroAmount();
 
         IERC20(token).transferFrom(msg.sender, address(this), amount);
 
@@ -103,10 +106,10 @@ contract TreasuryTest is Ownable {
 
     // Retiro de tokens hacia una wallet (llamado por contratos de juego)
     function withdrawTokens(address token, uint256 amount, address recipient) external onlyAuthorized {
-        require(acceptedTokens[token], "Token not accepted");
-        require(amount > 0, "Amount must be greater than zero");
-        require(recipient != address(0), "Invalid recipient");
-        require(amount <= IERC20(token).balanceOf(address(this)));
+        if (!acceptedTokens[token]) revert TokenNotAccepted();
+        if (amount == 0) revert ZeroAmount();
+        if (recipient == address(0)) revert InvalidRecipient();
+        if (amount > IERC20(token).balanceOf(address(this))) revert InsufficientBalance();
 
         IERC20(token).transfer(recipient, amount);
 
@@ -119,9 +122,8 @@ contract TreasuryTest is Ownable {
 
     // Función para que el owner retire tokens de emergencia
     function emergencyWithdraw(address token, uint256 amount, address recipient) external onlyOwner {
-        
-        require(amount > 0, "Amount must be greater than zero");
-        require(recipient != address(0), "Invalid recipient");
+        if (amount == 0) revert ZeroAmount();
+        if (recipient == address(0)) revert InvalidRecipient();
 
         IERC20(token).transfer(recipient, amount);
     }

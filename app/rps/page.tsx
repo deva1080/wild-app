@@ -1,18 +1,20 @@
 'use client';
 
 import React, { useState } from 'react';
+import { CircleDollarSign, Scissors, File } from 'lucide-react';
 import { useAccount } from 'wagmi';
-import { parseEther, formatEther } from 'viem';
+import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
-import { useGamePlay, extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
-import { useDelegatedPlay } from '@/lib/web3/hooks/useDelegatedPlay';
-import { usePreflightCheck } from '@/lib/web3/hooks/usePreflightCheck';
+import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
+import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeRPSChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
 import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { useTxMode } from '@/lib/web3/context/TxModeContext';
+import { PaymentSelector } from '@/components/PaymentSelector';
+import { FastTxToggle } from '@/components/FastTxToggle';
+import { RecentOutcomes } from '@/components/RecentOutcomes';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const CHOICE_NAMES = ['Rock', 'Paper', 'Scissors'] as const;
@@ -22,40 +24,25 @@ type RpsChoice = 0 | 1 | 2;
 
 function RockSvg({ color, size }: { color: string; size: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="8.5" fill={color} />
-      <ellipse cx="10" cy="9" rx="2.5" ry="1.4" fill="rgba(255,255,255,0.17)" />
-      <path d="M8.5 14.5 Q10.5 17 14.5 15.5" stroke="rgba(0,0,0,0.22)" strokeWidth="1" fill="none" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12.035 17.012a3 3 0 0 0-3-3l-.311-.002a.72.72 0 0 1-.505-1.229l1.195-1.195A2 2 0 0 1 10.828 11H12a2 2 0 0 0 0-4H9.243a3 3 0 0 0-2.122.879l-2.707 2.707A4.83 4.83 0 0 0 3 14a8 8 0 0 0 8 8h2a8 8 0 0 0 8-8V7a2 2 0 1 0-4 0v2a2 2 0 1 0 4 0"/>
+      <path d="M13.888 9.662A2 2 0 0 0 17 8V5A2 2 0 1 0 13 5"/>
+      <path d="M9 5A2 2 0 1 0 5 5V10"/>
+      <path d="M9 7V4A2 2 0 1 1 13 4V7.268"/>
     </svg>
   );
 }
 
 function PaperSvg({ color, size }: { color: string; size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="5" y="3" width="14" height="18" rx="1.5" fill={color} />
-      <line x1="8.5" y1="8"    x2="15.5" y2="8"    stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="8.5" y1="11.5" x2="15.5" y2="11.5" stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="8.5" y1="15"   x2="12.5" y2="15"   stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+  return <File size={size} color={color} strokeWidth={2} />;
 }
 
 function ScissorsSvg({ color, size }: { color: string; size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="6"  cy="19" r="3"   fill="none" strokeWidth="2" />
-      <circle cx="18" cy="19" r="3"   fill="none" strokeWidth="2" />
-      <line x1="8.6"  y1="16.6" x2="12" y2="11" strokeWidth="2.5" />
-      <line x1="15.4" y1="16.6" x2="12" y2="11" strokeWidth="2.5" />
-      <line x1="12"   y1="11"   x2="8"  y2="4"  strokeWidth="2.5" />
-      <line x1="12"   y1="11"   x2="16" y2="4"  strokeWidth="2.5" />
-    </svg>
-  );
+  return <Scissors size={size} color={color} strokeWidth={2} />;
 }
 
 function RpsIcon({ choice, size, active = false }: { choice: RpsChoice; size: number; active?: boolean }) {
-  const color = active ? '#d4a017' : 'rgba(255,255,255,0.45)';
+  const color = active ? '#debc6e' : '#52525b';
   if (choice === 0) return <RockSvg    color={color} size={size} />;
   if (choice === 1) return <PaperSvg   color={color} size={size} />;
   return                   <ScissorsSvg color={color} size={size} />;
@@ -65,12 +52,9 @@ function RpsIcon({ choice, size, active = false }: { choice: RpsChoice; size: nu
 
 export default function RPSPage() {
   const { address } = useAccount();
-  const { wildBalance, pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.rps);
-  const { playStandard, requestSettle, requestDelegatedPlay } = useGamePlay();
-  const { authorizedPlays, setupDelegatedPlay } = useDelegatedPlay();
-  const { check } = usePreflightCheck();
+  const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.rps);
   const result = useGameResultFlow();
-  const { mode: txMode } = useTxMode();
+  const bet = useBetController(addresses.games.rps);
 
   const [choice, setChoice] = useState<RpsChoice>(0);
   const [amount, setAmount] = useState('1');
@@ -80,7 +64,7 @@ export default function RPSPage() {
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
       ? contractPendingBet
       : null;
-  const balStr = wildBalance ? Number(formatEther(wildBalance as bigint)).toFixed(2) : '0.00';
+  const fmtAmt = (v: bigint) => Number(formatUnits(v, bet.decimals)).toFixed(2);
 
   const resultPhase  = result.state?.phase ?? 'idle';
   const resultPayout = result.state?.phase === 'result' ? result.state.payout    : undefined;
@@ -113,29 +97,10 @@ export default function RPSPage() {
     if (result.state !== null) result.close();
     setLoading(true);
     try {
-      const gameChoice = encodeRPSChoice(choice, 1);
-      const weiAmount  = parseEther(amount);
-
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.rps); return; }
 
-      if (txMode !== 'delegated') {
-        const issues = await check(addresses.games.rps, weiAmount);
-        const errors = issues.filter((i) => i.level === 'error');
-        if (errors.length > 0) { result.error(errors.map((e) => e.message).join('\n')); return; }
-      }
-
-      if (txMode === 'delegated') {
-        result.startPlacing();
-        if (!authorizedPlays || authorizedPlays === BigInt(0)) await setupDelegatedPlay(BigInt(100));
-        const txHash = await requestDelegatedPlay(addresses.games.rps, address, addresses.wildToken, weiAmount, gameChoice, false);
-        await result.waitForDelegatedTx(txHash);
-      } else {
-        result.startPlacing();
-        const playResult = await playStandard(addresses.games.rps, gameChoice, weiAmount);
-        result.betPlaced(playResult.betId, playResult.gameAddress);
-        const settleTxHash = await requestSettle(playResult.gameAddress, playResult.betId);
-        await result.waitForSettleTx(settleTxHash);
-      }
+      const gameChoice = encodeRPSChoice(choice, 1);
+      await bet.play(gameChoice, amount, result, setAmount);
       refetchAll();
     } catch (e: unknown) {
       result.error(extractRevertReason(e));
@@ -148,10 +113,10 @@ export default function RPSPage() {
   if (!address) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="flex gap-6">
-          {([0, 1, 2] as RpsChoice[]).map((c) => (
-            <RpsIcon key={c} choice={c} size={52} active />
-          ))}
+        <div className="flex gap-6 opacity-30">
+          <img src="/rps/rock.webp" alt="rock" className="w-16 h-16 object-contain" />
+          <img src="/rps/paper.webp" alt="paper" className="w-16 h-16 object-contain" />
+          <img src="/rps/scissors.webp" alt="scissors" className="w-16 h-16 object-contain" />
         </div>
         <h1
           className="text-[42px] font-black uppercase tracking-tight"
@@ -174,39 +139,44 @@ export default function RPSPage() {
   return (
     <div className="flex flex-col h-full">
 
+      {/* Global gradient defs for lucide icon strokes */}
+      <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
+        <defs>
+          <linearGradient id="gold-icon-grad-rps" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#debc6e" />
+            <stop offset="100%" stopColor="#8c6825" />
+          </linearGradient>
+        </defs>
+      </svg>
+
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-4 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <div
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-black tracking-wide"
-          style={{
-            border: '2px solid transparent',
-            backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
-            backgroundOrigin: 'border-box',
-            backgroundClip: 'padding-box, border-box',
-            boxShadow: '0 0 12px rgba(222,188,110,0.15)',
-          }}
-        >
-          <span
-            style={{
-              background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-              WebkitBackgroundClip: 'text',
-              backgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+        <PaymentSelector disabled={loading} />
+
+        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+          <RecentOutcomes 
+            gameAddress={addresses.games.rps}
+            renderOutcome={(o, i) => {
+              // RPS: 0 = Rock, 1 = Paper, 2 = Scissors, 3 = Draw
+              let label = '';
+              let bg = '';
+              if (o === 0) { label = 'R'; bg = 'bg-red-400/10 text-red-400 border-red-500/30'; }
+              else if (o === 1) { label = 'P'; bg = 'bg-blue-400/10 text-blue-400 border-blue-500/30'; }
+              else if (o === 2) { label = 'S'; bg = 'bg-green-400/10 text-green-400 border-green-500/30'; }
+              else { label = 'D'; bg = 'bg-zinc-800 text-zinc-400 border-zinc-600'; }
+
+              return (
+                <div 
+                  className={`w-6 h-6 rounded-full flex items-center justify-center border font-bold text-[10px] mx-0.5 ${bg}`}
+                >
+                  {label}
+                </div>
+              );
             }}
-          >$WILD</span>
-          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" strokeWidth="2.5" strokeLinecap="round">
-            <defs><linearGradient id="chevron-grad-rps" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
-            <path stroke="url(#chevron-grad-rps)" d="m6 9 6 6 6-6"/>
-          </svg>
+          />
         </div>
-        <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-[11px] font-medium text-zinc-600">
-          <svg xmlns="http://www.w3.org/2000/svg"
-            className={`w-3 h-3 ${txMode === 'delegated' ? 'text-amber-400' : ''}`}
-            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-          {txMode === 'delegated' ? <span className="text-amber-400">Fast TX</span> : 'Standard TX'}
-        </div>
+
+        <FastTxToggle disabled={loading} />
       </div>
 
       {/* ── Pending bet banner ── */}
@@ -218,7 +188,7 @@ export default function RPSPage() {
 
       {/* ── Center: game display ── */}
       <div
-        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl flex flex-col items-center justify-center border border-amber-400/25 bg-[#0a0a0a]"
+        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl flex items-center justify-center border border-amber-400/25 bg-[#0a0a0a]"
       >
         {/* Ambient glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -233,115 +203,135 @@ export default function RPSPage() {
           />
         </div>
 
-        {/* Decorative faint flanking icons */}
-        {!isResult && !isError && (
-          <>
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 opacity-[0.06]">
-              <RpsIcon choice={((choice + 1) % 3) as RpsChoice} size={90} active />
-            </div>
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-[0.06]">
-              <RpsIcon choice={((choice + 2) % 3) as RpsChoice} size={70} active />
-            </div>
-          </>
-        )}
+        {/* ── Cards layout ── */}
+        <div className="relative z-10 flex flex-col md:flex-row items-center gap-4 md:gap-16 px-6">
 
-        {/* ── Idle / Loading: single large icon centered ── */}
-        {!isResult && !isError && (
-          <div className="relative z-10 flex flex-col items-center gap-4">
-            <div
+          {/* Player card */}
+          <div className="flex flex-col items-center gap-3 order-2 md:order-1">
+            <img 
+              src={`/rps/${choice === 0 ? 'rock' : choice === 1 ? 'paper' : 'scissors'}.webp`} 
+              alt={CHOICE_NAMES[choice]} 
+              className="h-48 md:h-80 w-auto object-contain" 
+              style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.6))' }}
+            />
+            <span
+              className="text-lg font-black tracking-widest uppercase"
               style={{
-                animation: loading ? 'rpsGlow 1.4s ease-in-out infinite' : undefined,
-                filter: loading
-                  ? 'drop-shadow(0 0 22px rgba(200,146,10,0.6))'
-                  : 'drop-shadow(0 0 10px rgba(200,146,10,0.22))',
-                transition: 'filter 0.4s',
+                background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
               }}
-            >
-              <RpsIcon choice={choice} size={104} active />
-            </div>
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-amber-300/70 text-base font-black tracking-widest uppercase">
-                {CHOICE_NAMES[choice]}
-              </span>
-              {loading && spinLabel && (
-                <p className="text-amber-300/40 text-[11px] font-medium animate-pulse tracking-widest uppercase">
-                  {spinLabel}
-                </p>
-              )}
-            </div>
+            >YOU</span>
           </div>
-        )}
 
-        {/* ── Result: both hands face-off ── */}
-        {isResult && (
-          <div
-            className="relative z-10 flex flex-col items-center gap-5"
-            style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
-          >
-            <div className="flex items-center gap-8">
-              {/* Player */}
-              <div className="flex flex-col items-center gap-2">
-                <div style={{ filter: `drop-shadow(0 0 18px ${resultGlow})` }}>
-                  <RpsIcon choice={choice} size={80} active />
-                </div>
-                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">You</span>
-                <span className="text-[11px] font-bold text-amber-300/70 tracking-wider uppercase">
-                  {CHOICE_NAMES[choice]}
-                </span>
-              </div>
-
-              {/* VS */}
-              <div className="flex flex-col items-center">
-                <span
-                  className="text-3xl font-black"
-                  style={{ color: resultColor, textShadow: `0 0 20px ${resultGlow}` }}
+          {/* VS */}
+          <div className="flex flex-col items-center order-1 md:order-2">
+            <span className="text-3xl font-black text-zinc-600">VS</span>
+            {loading && spinLabel && (
+              <p className="text-amber-300/40 text-[10px] font-medium animate-pulse tracking-widest uppercase mt-2">
+                {spinLabel}
+              </p>
+            )}
+            {isResult && (
+              <div className="flex flex-col items-center gap-1 mt-2" style={{ animation: 'resultFadeIn 0.35s ease-out both' }}>
+                <div
+                  className="text-4xl font-black tracking-tight"
+                  style={{ color: resultColor, textShadow: `0 0 32px ${resultGlow}` }}
                 >
-                  VS
-                </span>
-              </div>
-
-              {/* House */}
-              <div className="flex flex-col items-center gap-2">
-                <div style={{ filter: 'drop-shadow(0 0 8px rgba(255,255,255,0.08))' }}>
-                  <RpsIcon choice={houseChoice} size={80} />
+                  {resultLabel}
                 </div>
-                <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">House</span>
-                <span className="text-[11px] font-bold text-zinc-500 tracking-wider uppercase">
-                  {CHOICE_NAMES[houseChoice]}
-                </span>
+                {isWin && resultPayout !== undefined && (
+                  <p className="text-base font-bold text-green-300">
+                    +{fmtAmt(resultPayout)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
+                  </p>
+                )}
+                {isTie && (
+                  <p className="text-xs text-amber-300/60 font-medium">Bet returned</p>
+                )}
+                {isLoss && resultTotalBet !== undefined && (
+                  <p className="text-xs text-zinc-400">
+                    −{fmtAmt(resultTotalBet)} {bet.meta.symbol}
+                  </p>
+                )}
               </div>
-            </div>
-
-            {/* WIN / TIE / LOSS */}
-            <div className="flex flex-col items-center gap-1">
-              <div
-                className="text-5xl font-black tracking-tight"
-                style={{ color: resultColor, textShadow: `0 0 32px ${resultGlow}` }}
-              >
-                {resultLabel}
-              </div>
-              {isWin && resultPayout !== undefined && (
-                <p className="text-lg font-bold text-green-300">
-                  +{Number(formatEther(resultPayout)).toFixed(2)}{' '}
-                  <span className="text-green-400/60 text-sm">WILD</span>
-                </p>
-              )}
-              {isTie && (
-                <p className="text-sm text-amber-300/60 font-medium">Bet returned</p>
-              )}
-              {isLoss && resultTotalBet !== undefined && (
-                <p className="text-sm text-zinc-400">
-                  −{Number(formatEther(resultTotalBet)).toFixed(2)} WILD
-                </p>
-              )}
-            </div>
+            )}
           </div>
-        )}
+
+          {/* Dealer card */}
+          <div className="flex flex-col items-center gap-3 order-3">
+            <div className="relative h-48 md:h-80" style={{ perspective: '800px' }}>
+              <div
+                className="h-full relative"
+                style={{
+                  transformStyle: 'preserve-3d',
+                  transition: 'transform 0.8s ease-in-out',
+                  transform: isResult ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                }}
+              >
+                {/* Back face (wildcard / idle) */}
+                <div
+                  className="relative h-full"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                  }}
+                >
+                  <img 
+                    src="/rps/wildcard.webp" 
+                    alt="Dealer" 
+                    className="h-48 md:h-80 w-auto object-contain" 
+                    style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.6))' }}
+                  />
+                  {loading && (
+                    <div 
+                      className="absolute inset-0 pointer-events-none rounded-2xl"
+                      style={{ animation: 'cardPulseGlow 2s ease-in-out infinite' }}
+                    />
+                  )}
+                  {loading && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl">
+                      <div className="absolute inset-0" style={{ animation: 'cardGlint 2.5s ease-in-out infinite', background: 'linear-gradient(105deg, transparent 40%, rgba(222,188,110,0.08) 45%, rgba(222,188,110,0.2) 50%, rgba(222,188,110,0.08) 55%, transparent 60%)', backgroundSize: '200% 100%' }} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Front face (result) */}
+                <div
+                  className="absolute inset-0 h-full flex items-center justify-center"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                  }}
+                >
+                  {isResult && (
+                    <img 
+                      src={`/rps/${houseChoice === 0 ? 'rock' : houseChoice === 1 ? 'paper' : 'scissors'}.webp`} 
+                      alt={CHOICE_NAMES[houseChoice]} 
+                      className="h-48 md:h-80 w-auto object-contain" 
+                      style={{ filter: `drop-shadow(0 4px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 20px ${resultGlow})` }}
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+            <span
+              className="text-lg font-black tracking-widest uppercase"
+              style={{
+                background: 'linear-gradient(20deg, #b89d5a, #6b4f1c)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >DEALER</span>
+          </div>
+        </div>
 
         {/* ── Error ── */}
         {isError && result.state?.phase === 'error' && (
           <div
-            className="relative z-10 flex flex-col items-center gap-2"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-20"
             style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
           >
             <p className="text-red-400 font-bold text-sm">{result.state.message}</p>
@@ -373,7 +363,7 @@ export default function RPSPage() {
                 }}
               >Bet Amount</p>
               <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
-                <span className="text-amber-400 text-lg font-black">$</span>
+                <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-icon-grad-rps)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
                   value={amount} disabled={loading}
@@ -394,8 +384,8 @@ export default function RPSPage() {
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-1.5">
-                {[...CHIP_VALUES, ...(wildBalance ? ['MAX'] : [])].map((v) => {
-                  const val = v === 'MAX' ? Number(formatEther(wildBalance as bigint)).toFixed(2) : v;
+                {[...CHIP_VALUES, ...(bet.balanceWei ? ['MAX'] : [])].map((v) => {
+                  const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val || (v !== 'MAX' && amount === v);
                   return (
                     <button key={v} disabled={loading} onClick={() => setAmount(val)}
@@ -427,12 +417,15 @@ export default function RPSPage() {
                     onClick={() => setChoice(c)}
                     className={`flex-1 flex items-center gap-2.5 px-3 rounded-xl border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       choice === c
-                        ? 'border-amber-400/55 bg-amber-500/10 shadow-[0_0_14px_rgba(200,146,10,0.18)]'
+                        ? 'border-[#debc6e] bg-[linear-gradient(145deg,#a87d32_0%,#debc6e_60%,#8c6825_100%)] shadow-[0_0_14px_rgba(200,146,10,0.18)]'
                         : 'border-zinc-700/60 bg-zinc-800/30 hover:border-zinc-600'
                     }`}
                   >
                     <RpsIcon choice={c} size={22} active={choice === c} />
-                    <span className={`text-xs font-bold tracking-wider ${choice === c ? 'text-amber-200' : 'text-zinc-500'}`}>
+                    <span 
+                      className={`text-xs font-bold tracking-wider uppercase ${choice === c ? 'text-[#111111]' : 'text-zinc-500'}`}
+                      style={{ textShadow: choice === c ? '-1px -1px 1px rgba(0,0,0,0.6), 1px 1px 1px rgba(255,255,255,0.4)' : 'none' }}
+                    >
                       {CHOICE_NAMES[c]}
                     </span>
                   </button>
@@ -456,12 +449,9 @@ export default function RPSPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                  <defs><linearGradient id="rps-btn-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
-                  <path stroke="url(#rps-btn-grad)" strokeWidth="1.8" d="M18 11V9a2 2 0 0 0-4 0v1"/>
-                  <path stroke="url(#rps-btn-grad)" strokeWidth="1.8" d="M14 10V8a2 2 0 0 0-4 0v2"/>
-                  <path stroke="url(#rps-btn-grad)" strokeWidth="1.8" d="M10 9.9V9a2 2 0 0 0-4 0v5a7 7 0 0 0 14 0v-4a2 2 0 0 0-4 0v2"/>
-                </svg>
+                <div className="relative w-12 h-12 flex items-center justify-center text-[#debc6e]" style={{ filter: 'drop-shadow(0 0 8px rgba(222,188,110,0.5))' }}>
+                   <RpsIcon choice={choice} size={48} active={true} />
+                </div>
                 <span
                   className="font-black text-4xl tracking-[0.15em]"
                   style={{

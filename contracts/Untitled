@@ -1,0 +1,11 @@
+{
+  "TreasuryModule#TreasuryTest": "0xE83722B4d2d097745aA90d9152E49e39F7C32D13",
+  "WildcardModule#Wildcard": "0x221eca0c00Ac1F84C7356d985bACC382717410Ea",
+  "GameCreditsModule#GameCredits": "0x00D7d2D39089AFF656894e0c472688fd3E20a7bd",
+  "GamesModule#CrashGame": "0xD29993eBc6561c7832073451a604d0f8ad521F06",
+  "GamesModule#FlipGame": "0xA6c2B4D803b94D865F3962516A90e841dE8c5d2d",
+  "GamesModule#RPSGame": "0x42294c94a74849cc44652BE3CC5A63D1877BdA65",
+  "GamesModule#WheelGame": "0x2865aba45D615E11ea97Fc6b2610f635f2D5Edd7",
+  "GameRouterModule#GameRouter": "0x7F3186795E49175e3A34A72e9Dc09eE33f42A56d",
+ 
+}

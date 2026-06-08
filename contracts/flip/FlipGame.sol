@@ -19,6 +19,8 @@ contract FlipGame is BaseGame {
         uint256 payout
     );
 
+    error InvalidSide();
+
     constructor(address _treasury) BaseGame(_treasury) {}
 
     // ──────────────────── Virtuals ────────────────────
@@ -34,7 +36,7 @@ contract FlipGame is BaseGame {
 
     function _validateGameChoice(bytes memory specificChoice) internal pure override {
         uint8 side = abi.decode(specificChoice, (uint8));
-        require(side <= 1, "Invalid side");
+        if (side > 1) revert InvalidSide();
     }
 
     function _storeGameBet(uint256 betId, bytes memory specificChoice) internal override {
@@ -63,7 +65,40 @@ contract FlipGame is BaseGame {
     function _getExplosionOutcomes(uint256 betId)
         internal view override returns (uint256[] memory outcomes)
     {
-        outcomes = new uint256[](baseBets[betId].betCount);
+        FlipBet storage fb = flipBets[betId];
+        BaseBet storage bet = baseBets[betId];
+        outcomes = new uint256[](bet.betCount);
+        uint256 losingOutcome = fb.choice ? 0 : 1;
+        for (uint16 i = 0; i < bet.betCount;) {
+            outcomes[i] = losingOutcome;
+            unchecked { ++i; }
+        }
+    }
+
+    function _previewRoll(bytes memory specificChoice, uint256 betAmount, uint256 randomWord)
+        internal pure override returns (uint256 payout, uint256 outcome)
+    {
+        uint8 side = abi.decode(specificChoice, (uint8));
+        bool choice = side == 1;
+        bool result = (randomWord % 100) < 50;
+        bool playerWins = choice != result;
+        if (playerWins) {
+            payout = betAmount * 2;
+        }
+        outcome = result ? 0 : 1;
+    }
+
+    function _previewExplosionOutcomes(bytes memory specificChoice, uint16 betCount)
+        internal pure override returns (uint256[] memory outcomes)
+    {
+        uint8 side = abi.decode(specificChoice, (uint8));
+        bool choice = side == 1;
+        uint256 losingOutcome = choice ? 0 : 1;
+        outcomes = new uint256[](betCount);
+        for (uint16 i = 0; i < betCount;) {
+            outcomes[i] = losingOutcome;
+            unchecked { ++i; }
+        }
     }
 
     /// @dev Flip refunds full amount (no house edge in original).

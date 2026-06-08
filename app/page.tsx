@@ -5,6 +5,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAccount } from 'wagmi';
 import { WalletButton } from '@/components/WalletButton';
+import { LiveFeed } from '@/components/LiveFeed';
+
+const featurePills = [
+  { title: 'Provably Fair', text: 'Verifiable and transparent' },
+  { title: 'Instant Settlement', text: 'Payouts in seconds' },
+  { title: 'Multichain Access', text: 'Play across leading chains' },
+  { title: 'Secure Wallet Login', text: 'Non-custodial and secure' },
+];
 
 const games = [
   { slug: 'crash',   name: 'Crash',       image: '/images/crash.webp',  description: 'Multiplayer crash rounds with instant cashout.',    mode: 'Arcade',       live: true  },
@@ -15,19 +23,6 @@ const games = [
   { slug: 'plinko',  name: 'Plinko',      image: '/images/plinko.webp', description: 'Drop the chip and chase multipliers.',              mode: 'High Variance', live: false },
   { slug: 'boxes',   name: 'Gacha Boxes', image: '/images/boxes.webp',  description: 'Open mystery boxes for instant reveals.',           mode: 'Loot',         live: false },
   { slug: 'slots',   name: 'Slots',       image: '/images/slot.webp',   description: 'Classic slots feel with on-chain results.',         mode: 'Jackpot',      live: false },
-];
-
-const recentPlays = [
-  '0x9f...2aa won 84 USDC on Crash',
-  '0x44ef played Plinko',
-  '0xbf7e hit 12x on Wheel',
-];
-
-const featurePills = [
-  { title: 'Provably Fair', text: 'Verifiable and transparent' },
-  { title: 'Instant Settlement', text: 'Payouts in seconds' },
-  { title: 'Multichain Access', text: 'Play across leading chains' },
-  { title: 'Secure Wallet Login', text: 'Non-custodial and secure' },
 ];
 
 export default function Home() {
@@ -71,9 +66,10 @@ export default function Home() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-5 mx-auto">
+    <>
+    <div className="p-4 md:p-6 mx-auto flex flex-col gap-4 h-full overflow-hidden">
       {/* Hero */}
-      <section className="relative overflow-hidden border border-amber-400/30 rounded-2xl h-[386px] md:h-[450px] shadow-[0_0_0_1px_rgba(251,191,36,0.1)]">
+      <section className="relative overflow-hidden border border-amber-400/30 rounded-2xl h-[386px] md:h-[450px] shrink-0 shadow-[0_0_0_1px_rgba(251,191,36,0.1)]">
         <Image
           src="/hero.webp"
           alt="Hero illustration"
@@ -112,18 +108,14 @@ export default function Home() {
       </section>
 
       {/* Games Row + Right Panel */}
-      <section className="">
-        <div className="flex items-center justify-between">
-          
-         
-        </div>
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_180px] gap-4 items-stretch">
-          <div className="relative group/carousel lg:h-full min-w-0">
+      <section className="flex-1 min-h-0 overflow-hidden">
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_180px] gap-4 h-full">
+          <div className="relative group/carousel min-h-0 min-w-0">
             <div
               ref={scrollRef}
-              className="overflow-x-auto scroll-smooth lg:h-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              className="overflow-x-auto scroll-smooth h-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
-            <div className="flex gap-3 min-w-max lg:h-full">
+            <div className="flex gap-3 min-w-max h-full">
               {games.map((g) => {
                 const textShadow = '0 2px 4px #000, 0 0 10px rgba(0,0,0,0.95), 0 0 22px rgba(0,0,0,0.85), 0 0 36px rgba(0,0,0,0.6)';
                 const cardContent = (
@@ -193,14 +185,14 @@ export default function Home() {
                   <Link
                     key={g.slug}
                     href={`/${g.slug}`}
-                    className="group w-[160px] lg:w-auto lg:h-full aspect-[9/16] shrink-0 border border-amber-400/25 rounded-xl bg-[#1a1a1a] hover:border-amber-300/60 transition-colors overflow-hidden"
+                    className="group w-[160px] lg:w-auto h-full aspect-[9/16] shrink-0 border border-amber-400/25 rounded-xl bg-[#1a1a1a] hover:border-amber-300/60 transition-colors overflow-hidden"
                   >
                     {cardContent}
                   </Link>
                 ) : (
                   <div
                     key={g.slug}
-                    className="w-[160px] lg:w-auto lg:h-full aspect-[9/16] shrink-0 border border-zinc-800 rounded-xl bg-[#1a1a1a] overflow-hidden cursor-not-allowed"
+                    className="w-[160px] lg:w-auto h-full aspect-[9/16] shrink-0 border border-zinc-800 rounded-xl bg-[#1a1a1a] overflow-hidden cursor-not-allowed"
                   >
                     {cardContent}
                   </div>
@@ -231,22 +223,12 @@ export default function Home() {
             </button>
           </div>
 
-          <aside className="border border-amber-400/25 rounded-lg bg-[#1a1a1a] p-2.5 space-y-2">
-            <p className="text-[10px] font-bold tracking-widest text-amber-200/80 px-1">RECENT PLAYS</p>
-            <div className="space-y-1.5">
-              {recentPlays.map((play) => (
-                <div key={play} className="text-[11px] text-zinc-300 bg-[#111111] border border-amber-500/20 rounded-md px-2 py-1.5">
-                  {play}
-                </div>
-              ))}
-            </div>
-            <div className="relative w-full aspect-square rounded-md overflow-hidden border border-amber-400/25">
-              <Image src="/images/boxes.webp" alt="Promo box game" fill sizes="180px" className="object-cover" />
-            </div>
-          </aside>
+          <LiveFeed />
         </div>
       </section>
+    </div>
 
+    <div className="px-4 md:px-6 pb-4 md:pb-6 pt-2">
       <section className="border border-amber-400/20 rounded-2xl bg-[#161616] p-4">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {featurePills.map((feature) => (
@@ -258,5 +240,6 @@ export default function Home() {
         </div>
       </section>
     </div>
+    </>
   );
 }

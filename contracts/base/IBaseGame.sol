@@ -27,4 +27,12 @@ interface IBaseGame {
 
     /// @notice Atomic play + settle in a single tx. No pending state.
     function playAndSettle(PlayParams calldata params) external returns (uint256 betId, uint256 payout);
+
+    /// @notice Deterministic preview/demo result without state writes.
+    function previewPlay(
+        bytes calldata gameChoice,
+        address token,
+        uint256 amount,
+        uint256 seed
+    ) external view returns (uint256 payout, uint256[] memory outcomes);
 }

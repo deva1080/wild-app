@@ -20,6 +20,8 @@ contract RPSGame is BaseGame {
         uint256 payout
     );
 
+    error InvalidSide();
+
     constructor(address _treasury) BaseGame(_treasury) {}
 
     // ──────────────────── Virtuals ────────────────────
@@ -35,7 +37,7 @@ contract RPSGame is BaseGame {
 
     function _validateGameChoice(bytes memory specificChoice) internal pure override {
         uint8 side = abi.decode(specificChoice, (uint8));
-        require(side <= 2, "Invalid side");
+        if (side > 2) revert InvalidSide();
     }
 
     function _storeGameBet(uint256 betId, bytes memory specificChoice) internal override {
@@ -84,6 +86,40 @@ contract RPSGame is BaseGame {
         else if (rb.choice == 1) losingOutcome = 2;   // Paper loses to Scissors
         else losingOutcome = 0;                        // Scissors loses to Rock
         for (uint16 i = 0; i < bet.betCount;) {
+            outcomes[i] = losingOutcome;
+            unchecked { ++i; }
+        }
+    }
+
+    function _previewRoll(bytes memory specificChoice, uint256 betAmount, uint256 randomWord)
+        internal pure override returns (uint256 payout, uint256 outcome)
+    {
+        uint8 choice = abi.decode(specificChoice, (uint8));
+        uint8 opponent = uint8(randomWord % 3);
+
+        if (choice == opponent) {
+            payout = betAmount;
+            outcome = 3;
+            return (payout, outcome);
+        }
+
+        if (_playerWins(choice, opponent)) {
+            payout = betAmount * 2;
+        }
+        outcome = opponent;
+    }
+
+    function _previewExplosionOutcomes(bytes memory specificChoice, uint16 betCount)
+        internal pure override returns (uint256[] memory outcomes)
+    {
+        uint8 choice = abi.decode(specificChoice, (uint8));
+        uint8 losingOutcome;
+        if (choice == 0) losingOutcome = 1;
+        else if (choice == 1) losingOutcome = 2;
+        else losingOutcome = 0;
+
+        outcomes = new uint256[](betCount);
+        for (uint16 i = 0; i < betCount;) {
             outcomes[i] = losingOutcome;
             unchecked { ++i; }
         }

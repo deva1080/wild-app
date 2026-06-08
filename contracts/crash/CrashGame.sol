@@ -21,6 +21,8 @@ contract CrashGame is BaseGame {
         uint256 payout
     );
 
+    error MultiplierNotInRange();
+
     constructor(address _treasury) BaseGame(_treasury) {}
 
     // ──────────────────── Admin ────────────────────
@@ -46,10 +48,9 @@ contract CrashGame is BaseGame {
 
     function _validateGameChoice(bytes memory specificChoice) internal view override {
         uint256 multiplierChoice = abi.decode(specificChoice, (uint256));
-        require(
-            multiplierChoice > minMultiplier && multiplierChoice <= maxMultiplier,
-            "Multiplier not in range"
-        );
+        if (multiplierChoice <= minMultiplier || multiplierChoice > maxMultiplier) {
+            revert MultiplierNotInRange();
+        }
     }
 
     function _storeGameBet(uint256 betId, bytes memory specificChoice) internal override {
@@ -80,6 +81,22 @@ contract CrashGame is BaseGame {
         outcomes = new uint256[](baseBets[betId].betCount);
     }
 
+    function _previewRoll(bytes memory specificChoice, uint256 betAmount, uint256 randomWord)
+        internal view override returns (uint256 payout, uint256 outcome)
+    {
+        uint256 multiplierChoice = abi.decode(specificChoice, (uint256));
+        outcome = _computeMultiplier(randomWord);
+        if (multiplierChoice <= outcome) {
+            payout = betAmount * multiplierChoice / 100;
+        }
+    }
+
+    function _previewExplosionOutcomes(bytes memory /*specificChoice*/, uint16 betCount)
+        internal pure override returns (uint256[] memory outcomes)
+    {
+        outcomes = new uint256[](betCount);
+    }
+
     function _getRefundAmount(uint256 betId) internal view override returns (uint256) {
         BaseBet storage bet = baseBets[betId];
         return bet.amount * bet.betCount;
@@ -88,9 +105,25 @@ contract CrashGame is BaseGame {
     // ──────────────────── Internal ────────────────────
 
     function _computeMultiplier(uint256 randomWord) private view returns (uint256) {
-        uint256 H = randomWord % (maxMultiplier - minMultiplier + 1);
-        uint256 E = maxMultiplier / 100;
-        return (E * maxMultiplier - H) / (E * 100 - H);
+          // E es un número grande para tener buena precisión
+        uint256 E = 1000000;
+        
+        // H es un número uniforme entre 0 y E-1
+        uint256 H = randomWord % E;
+        
+        // Fórmula estándar: (100 * E) / (E - H)
+        // El 100 inicial es porque el multiplicador base es 100 (1.00x)
+        uint256 multiplier = (100 * E) / (E - H);
+        
+        // Clampear entre minMultiplier y maxMultiplier
+        if (multiplier < minMultiplier) {
+            return minMultiplier;
+        }
+        if (multiplier > maxMultiplier) {
+            return maxMultiplier;
+        }
+        
+        return multiplier;
     }
 
     // ──────────────────── View ────────────────────

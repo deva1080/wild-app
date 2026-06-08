@@ -1,12 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Gamepad2, Scissors, Wallet } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { WalletButton } from '@/components/WalletButton';
+import { OnboardingFlow } from '@/components/OnboardingFlow';
+import { QuickSwapModal, QuickSwapVariant } from '@/components/QuickSwapModal';
 
 const IconCrown = ({ className = "w-6 h-6" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -59,8 +62,7 @@ const navItems = [
   { href: '/flip', label: 'Flip', icon: IconCoin },
   { href: '/rps', label: 'RPS', icon: Scissors },
   { href: '/wheel', label: 'Wheel', icon: IconSettings },
-  { href: '/wallet', label: 'Wallet', icon: Wallet },
-  { href: '/transactions', label: 'Transactions', icon: IconFileText },
+  { href: '/account', label: 'My Account', icon: Wallet },
 ];
 
 const formatBalance = (bal?: unknown) => {
@@ -73,9 +75,19 @@ const formatBalance = (bal?: unknown) => {
   return '0.00';
 };
 
+// Below this amount of native ETH the user can't pay gas for Standard TX.
+const ETH_GAS_THRESHOLD = 100000000000000n; // 0.0001 ETH
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { address, wildBalance, creditsBalance } = usePlayerState();
+  const { address, wildBalance, usdcBalance, creditsBalance, ethBalance } = usePlayerState();
+  const [swapModal, setSwapModal] = useState<QuickSwapVariant>(null);
+
+  const ethStr = typeof ethBalance === 'bigint' ? Number(formatUnits(ethBalance, 18)).toFixed(4) : '0.0000';
+  const ethLow = ethBalance === undefined || (ethBalance as bigint) < ETH_GAS_THRESHOLD;
+  const usdcStr = typeof usdcBalance === 'bigint'
+    ? Number(formatUnits(usdcBalance as bigint, 6)).toLocaleString('en-US', { maximumFractionDigits: 2 })
+    : '0.00';
 
   return (
     <div className="flex h-screen bg-transparent text-zinc-100 font-sans overflow-hidden">
@@ -151,10 +163,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="hidden md:block" />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
             {address && (
               <>
-                <div className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
+                {/* Native ETH (gas) — turns red when too low to pay gas */}
+                <div
+                  title={ethLow ? 'Low ETH for gas. Use Fast TX or top up ETH on Base.' : 'ETH for gas on Base'}
+                  className={`hidden md:flex items-center gap-1.5 border rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] transition-colors ${
+                    ethLow ? 'border-red-500/40 text-red-300' : 'border-amber-400/25 text-amber-100 hover:border-amber-300/60'
+                  }`}
+                >
+                  <span className="leading-none tabular-nums">{ethStr}</span>
+                  <span className={`text-[12px] font-bold tracking-widest leading-none ${ethLow ? 'text-red-300/70' : 'text-amber-200/70'}`}>ETH</span>
+                </div>
+                <div className="hidden lg:flex items-center gap-1.5 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
+                  <span className="leading-none tabular-nums">{usdcStr}</span>
+                  <span className="text-[12px] font-bold tracking-widest text-amber-200/70 leading-none">USDC</span>
+                </div>
+                <button
+                  type="button"
+                  title="WILD ↔ USDC — click to swap"
+                  onClick={() => setSwapModal('wild')}
+                  className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/80 hover:bg-amber-400/5 active:scale-95 transition-all rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100 cursor-pointer"
+                >
                   <span className="leading-none">{formatBalance(wildBalance)}</span>
                   <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">WILD</span>
                   <span
@@ -164,8 +195,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   >
                     $
                   </span>
-                </div>
-                <div className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
+                </button>
+                <button
+                  type="button"
+                  title="Convert to Credits — click to buy"
+                  onClick={() => setSwapModal('credits')}
+                  className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/80 hover:bg-amber-400/5 active:scale-95 transition-all rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100 cursor-pointer"
+                >
                   <span className="leading-none">{formatBalance(creditsBalance)}</span>
                   <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">CREDITS</span>
                   <span
@@ -175,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   >
                     <IconGamepad className="w-3 h-3" />
                   </span>
-                </div>
+                </button>
               </>
             )}
             <WalletButton />
@@ -187,6 +223,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
+
+      {/* Adaptive welcome + feature walkthrough */}
+      <OnboardingFlow />
+
+      {/* Quick-action swap modal (header WILD / CREDITS pills) */}
+      <QuickSwapModal variant={swapModal} onClose={() => setSwapModal(null)} />
     </div>
   );
 }

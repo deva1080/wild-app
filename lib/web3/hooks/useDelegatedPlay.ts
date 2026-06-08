@@ -3,7 +3,7 @@
 import { useAccount, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
-import { erc20Abi, maxUint256 } from 'viem';
+import { Address, erc20Abi, maxUint256 } from 'viem';
 
 export function useDelegatedPlay() {
   const { address } = useAccount();
@@ -19,25 +19,29 @@ export function useDelegatedPlay() {
   });
 
   /**
-   * Setup delegated play: approve GameRouter for max spending + authorize N plays on-chain.
+   * Setup delegated play: approve GameRouter for max spending of the bet token
+   * (skipped for credits) + authorize N plays on-chain.
+   * @param token Token to approve. Pass null when betting with credits (no transfer).
    */
-  const setupDelegatedPlay = async (plays: bigint) => {
+  const setupDelegatedPlay = async (plays: bigint, token: Address | null = addresses.wildToken) => {
     if (!address || !publicClient) throw new Error('Wallet no conectada');
 
-    const allowance = await publicClient.readContract({
-      address: addresses.wildToken,
-      abi: erc20Abi,
-      functionName: 'allowance',
-      args: [address, addresses.gameRouter],
-    });
-
-    if (allowance === 0n) {
-      await writeContractAsync({
-        address: addresses.wildToken,
+    if (token) {
+      const allowance = await publicClient.readContract({
+        address: token,
         abi: erc20Abi,
-        functionName: 'approve',
-        args: [addresses.gameRouter, maxUint256],
+        functionName: 'allowance',
+        args: [address, addresses.gameRouter],
       });
+
+      if (allowance === 0n) {
+        await writeContractAsync({
+          address: token,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [addresses.gameRouter, maxUint256],
+        });
+      }
     }
 
     await writeContractAsync({
