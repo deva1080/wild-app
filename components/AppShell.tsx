@@ -40,6 +40,88 @@ const IconSettings = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
+const IconPlinko = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" stroke="none" className={className}>
+    <circle cx="12" cy="4" r="1.4" />
+    <circle cx="8" cy="9" r="1.4" />
+    <circle cx="16" cy="9" r="1.4" />
+    <circle cx="4" cy="14" r="1.4" />
+    <circle cx="12" cy="14" r="1.4" />
+    <circle cx="20" cy="14" r="1.4" />
+    <circle cx="8" cy="19" r="1.4" />
+    <circle cx="16" cy="19" r="1.4" />
+  </svg>
+);
+
+const IconFrogger = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M12 2v20" strokeDasharray="2 4" opacity="0.5" />
+    <path d="M5 22h14" />
+    <path d="M5 2h14" />
+    <circle cx="12" cy="18" r="2" fill="currentColor" />
+    <path d="M12 16v-4" />
+    <polyline points="9 10 12 7 15 10" />
+  </svg>
+);
+
+const IconModernSlot = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="2" y="3" width="20" height="18" rx="2" />
+    <rect x="4" y="6" width="3" height="4" rx="1" />
+    <rect x="8.5" y="6" width="3" height="4" rx="1" />
+    <rect x="13" y="6" width="3" height="4" rx="1" />
+    <rect x="17" y="6" width="3" height="4" rx="1" />
+    <rect x="4" y="12" width="3" height="4" rx="1" />
+    <rect x="8.5" y="12" width="3" height="4" rx="1" />
+    <rect x="13" y="12" width="3" height="4" rx="1" />
+    <rect x="17" y="12" width="3" height="4" rx="1" />
+  </svg>
+);
+
+const IconSlot = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="2" y="3" width="20" height="18" rx="2" />
+    <rect x="5" y="7" width="4" height="5" rx="1" />
+    <rect x="10" y="7" width="4" height="5" rx="1" />
+    <rect x="15" y="7" width="4" height="5" rx="1" />
+    <line x1="8" y1="17" x2="16" y2="17" />
+  </svg>
+);
+
+const IconKeno = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <circle cx="5"  cy="5"  r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="5"  r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="5"  r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="5"  cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="5"  cy="19" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="19" r="1.5" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const IconDice = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="2" y="2" width="20" height="20" rx="3" />
+    <circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const IconHiLo = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <rect x="3" y="2" width="18" height="20" rx="3" />
+    <path d="M12 7v10" />
+    <path d="M9 10l3-3 3 3" />
+    <path d="M9 14l3 3 3-3" />
+  </svg>
+);
+
 const IconCoin = ({ className = "w-4 h-4" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="10" />
@@ -62,6 +144,13 @@ const navItems = [
   { href: '/flip', label: 'Flip', icon: IconCoin },
   { href: '/rps', label: 'RPS', icon: Scissors },
   { href: '/wheel', label: 'Wheel', icon: IconSettings },
+  { href: '/plinko', label: 'Plinko', icon: IconPlinko },
+  { href: '/hilo', label: 'Hi-Lo', icon: IconHiLo },
+  { href: '/dice', label: 'Dice', icon: IconDice },
+  { href: '/keno', label: 'Keno', icon: IconKeno },
+  { href: '/slot', label: 'Slots', icon: IconSlot },
+  { href: '/modernslot', label: 'Modern Slots', icon: IconModernSlot },
+  { href: '/frogger', label: 'Frogger', icon: IconFrogger },
   { href: '/account', label: 'My Account', icon: Wallet },
 ];
 

@@ -25,6 +25,20 @@ export function WalletButton() {
   // Tracks whether we already verified (or established) a session this page load
   const sessionVerifiedRef = useRef(false)
 
+  const forceFullDisconnect = useCallback(() => {
+    disconnect()
+    if (authenticated) logout()
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
+    // Clear wagmi's persisted storage so the stale connector isn't restored on reload
+    try {
+      localStorage.removeItem('wagmi.store')
+      localStorage.removeItem('wagmi.cache')
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('wagmi.')) localStorage.removeItem(key)
+      }
+    } catch { /* localStorage unavailable */ }
+  }, [disconnect, authenticated, logout])
+
   const handleAuth = useCallback(async (walletAddress: string) => {
     try {
       const issuedAt = new Date().toISOString()
@@ -37,8 +51,9 @@ export function WalletButton() {
       })
     } catch (err) {
       console.error('[auth] Sign-in failed:', err)
+      forceFullDisconnect()
     }
-  }, [signMessageAsync])
+  }, [signMessageAsync, forceFullDisconnect])
 
   const { connectors, connect, isPending, error } = useConnect({
     mutation: {
@@ -125,9 +140,7 @@ export function WalletButton() {
     : ''
 
   const handleDisconnect = () => {
-    disconnect()
-    if (authenticated) logout()
-    fetch('/api/auth/logout', { method: 'POST' })
+    forceFullDisconnect()
   }
 
   const handleRenew = async () => {

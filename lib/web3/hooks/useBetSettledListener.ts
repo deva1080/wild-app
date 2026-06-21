@@ -17,10 +17,15 @@ export type BetSettledEvent = {
 const WSS_URL = 'wss://base-rpc.publicnode.com';
 
 const GAME_CONFIGS: { address: Address; abi: readonly unknown[] }[] = [
-  { address: addresses.games.crash, abi: abis.crash as readonly unknown[] },
-  { address: addresses.games.flip, abi: abis.flip as readonly unknown[] },
-  { address: addresses.games.rps, abi: abis.rps as readonly unknown[] },
-  { address: addresses.games.wheel, abi: abis.wheel as readonly unknown[] },
+  { address: addresses.games.crash,          abi: abis.crash         as readonly unknown[] },
+  { address: addresses.games.flip,           abi: abis.flip          as readonly unknown[] },
+  { address: addresses.games.rps,            abi: abis.rps           as readonly unknown[] },
+  { address: addresses.games.wheel,          abi: abis.wheel         as readonly unknown[] },
+  { address: addresses.games.hiLoGame,       abi: abis.hiLo          as readonly unknown[] },
+  { address: addresses.games.diceGame,       abi: abis.dice          as readonly unknown[] },
+  { address: addresses.games.kenoGame,       abi: abis.keno          as readonly unknown[] },
+  { address: addresses.games.slotGame,       abi: abis.slot          as readonly unknown[] },
+  { address: addresses.games.modernSlotGame, abi: abis.modernSlot    as readonly unknown[] },
 ];
 
 /**
@@ -49,7 +54,10 @@ export function useBetSettledListener(
     const player = playerAddress;
     const unwatchers: (() => void)[] = [];
 
-    const gameAbis = [abis.crash, abis.flip, abis.wheel, abis.rps];
+    const gameAbis = [
+      abis.crash, abis.flip, abis.wheel, abis.rps,
+      abis.hiLo, abis.dice, abis.keno, abis.slot, abis.modernSlot,
+    ];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function handleLogs(logs: any[]) {

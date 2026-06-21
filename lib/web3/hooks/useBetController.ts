@@ -15,7 +15,7 @@ import { PAYMENT_METHODS } from '../constants/tokens';
 
 /** Subset of the useGameResultFlow API the controller drives. */
 interface ResultFlow {
-  startPlacing: () => void;
+  startPlacing: (delegated?: boolean) => void;
   betPlaced: (betId: bigint, gameAddress: Address) => void;
   waitForSettleTx: (txHash: Hex, gameAddress?: Address) => Promise<void>;
   waitForDelegatedTx: (txHash: Hex) => Promise<void>;
@@ -113,7 +113,7 @@ export function useBetController(gameAddress: Address) {
         }
 
         if (txMode === 'delegated') {
-          result.startPlacing();
+          result.startPlacing(true);
           if (!authorizedPlays || authorizedPlays === 0n) {
             await setupDelegatedPlay(100n, useCredits ? null : token);
           }

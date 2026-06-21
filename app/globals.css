@@ -77,3 +77,14 @@ h1, h2, h3, h4 {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Slot reel: continuous downward scroll. Strip is duplicated, so -50% == one full copy. */
+@keyframes reelDown {
+  from { transform: translateY(-50%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes suitFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  50%      { transform: translateY(-12px) rotate(6deg); opacity: 0.6; }
+}
+

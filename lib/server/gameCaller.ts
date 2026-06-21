@@ -57,15 +57,15 @@ function buildSeed(): bigint {
 }
 
 const GAS_FLOOR: Record<string, bigint> = {
-  playGameDelegated: 450_000n,
-  settleBet: 200_000n,
-  default: 500_000n,
+  playGameDelegated: 800_000n,
+  settleBet: 400_000n,
+  default: 800_000n,
 };
 
-// 30% overhead on top of the estimate, with a minimum floor per call type.
+// 50% overhead on top of the estimate, with a minimum floor per call type.
 // If estimation fails (tx would revert) we fall back to the floor so the
 // revert still lands on-chain for debugging.
-const GAS_BUFFER_MULTIPLIER = 130n; // 1.30x → multiply by 130 then divide by 100
+const GAS_BUFFER_MULTIPLIER = 150n; // 1.50x → multiply by 150 then divide by 100
 
 async function estimateGasWithBuffer(
   account: { address: Address },

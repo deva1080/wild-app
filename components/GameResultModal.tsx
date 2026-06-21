@@ -7,8 +7,7 @@ import { abis } from '@/lib/web3/constants/abis';
 import { useGamePlay } from '@/lib/web3/hooks/useGamePlay';
 import { useBetSettledListener, BetSettledEvent } from '@/lib/web3/hooks/useBetSettledListener';
 
-const RESULT_RECEIPT_CONFIRMATIONS = 2;
-const RESULT_RECEIPT_REFETCH_DELAY_MS = 1500;
+const RESULT_RECEIPT_CONFIRMATIONS = 1;
 
 export type GameResultState =
   | { phase: 'placing' }
@@ -158,19 +157,20 @@ function decodeBetSettledFromLogs(
   type DecodedResult = { betId: bigint; payout: bigint; totalBet: bigint; outcomes: bigint[] };
 
   const gameAbis = [
-    { name: 'crash', abi: abis.crash },
-    { name: 'flip', abi: abis.flip },
-    { name: 'wheel', abi: abis.wheel },
-    { name: 'rps', abi: abis.rps },
+    abis.crash,
+    abis.flip,
+    abis.wheel,
+    abis.rps,
+    abis.hiLo,
+    abis.dice,
+    abis.keno,
+    abis.slot,
+    abis.modernSlot,
   ];
   let bestResult: DecodedResult | null = null;
-  let wheelRollResult: DecodedResult | null = null;
-  
-  console.log('[DecodeLogs] Total logs:', logs.length, 'Player filter:', playerAddress);
-  
-  for (let i = 0; i < logs.length; i++) {
-    const log = logs[i];
-    for (const { name: abiName, abi } of gameAbis) {
+
+  for (const log of logs) {
+    for (const abi of gameAbis) {
       try {
         const decoded = decodeEventLog({
           abi,
@@ -181,25 +181,11 @@ function decodeBetSettledFromLogs(
           const args = decoded.args as unknown as Record<string, unknown>;
           const eventPlayer = args.player as Address;
           const eventBetId = (args.betId as bigint) ?? BigInt(0);
-          
-          console.log(`[DecodeLogs] Found BetSettled at log[${i}] using ${abiName} ABI:`, {
-            betId: eventBetId.toString(),
-            player: eventPlayer,
-            token: args.token,
-            payout: ((args.payout as bigint) ?? BigInt(0)).toString(),
-            totalBet: ((args.totalBetAmount as bigint) ?? BigInt(0)).toString(),
-            outcomes: ((args.outcomes as bigint[]) ?? []).map(o => o.toString()),
-            rawTopics: log.topics,
-            rawData: log.data,
-          });
-          
-          // Filter by player address if provided
+
           if (playerAddress && eventPlayer.toLowerCase() !== playerAddress.toLowerCase()) {
-            console.log(`[DecodeLogs] Skipping - player mismatch`);
             continue;
           }
-          
-          // Take the event with the highest betId (most recent bet)
+
           if (!bestResult || eventBetId > bestResult.betId) {
             bestResult = {
               betId: eventBetId,
@@ -207,90 +193,15 @@ function decodeBetSettledFromLogs(
               totalBet: (args.totalBetAmount as bigint) ?? BigInt(0),
               outcomes: [...((args.outcomes as bigint[]) ?? [])],
             };
-            console.log(`[DecodeLogs] New best result with betId:`, eventBetId.toString());
           }
-          // Found BetSettled for this log, no need to try other ABIs
           break;
         }
       } catch {
         // not a BetSettled log with this ABI
       }
     }
-
-    try {
-      const decodedRoll = decodeEventLog({
-        abi: abis.wheel,
-        data: log.data,
-        topics: log.topics as [Hex, ...Hex[]],
-      });
-
-      if (decodedRoll.eventName === 'Roll') {
-        const args = decodedRoll.args as unknown as Record<string, unknown>;
-        const receiver = args.receiver as Address;
-        const betId = (args.id as bigint) ?? BigInt(0);
-
-        if (!playerAddress || receiver.toLowerCase() === playerAddress.toLowerCase()) {
-          const rolled = ((args.rolled as Array<bigint | number>) ?? []).map((outcome) => BigInt(outcome));
-          const rollResult = {
-            betId,
-            payout: (args.payout as bigint) ?? BigInt(0),
-            totalBet: (args.totalBetAmount as bigint) ?? BigInt(0),
-            outcomes: rolled,
-          };
-
-          console.log(`[DecodeLogs] Found Wheel Roll at log[${i}]:`, {
-            betId: rollResult.betId.toString(),
-            receiver,
-            payout: rollResult.payout.toString(),
-            totalBet: rollResult.totalBet.toString(),
-            outcomes: rollResult.outcomes.map(o => o.toString()),
-            rawTopics: log.topics,
-            rawData: log.data,
-          });
-
-          if (!wheelRollResult || rollResult.betId > wheelRollResult.betId) {
-            wheelRollResult = rollResult;
-          }
-        }
-      }
-    } catch {
-      // not a Wheel Roll log
-    }
   }
 
-  if (bestResult && wheelRollResult && bestResult.betId === wheelRollResult.betId) {
-    const sameOutcomes =
-      bestResult.outcomes.length === wheelRollResult.outcomes.length &&
-      bestResult.outcomes.every((outcome, index) => outcome === wheelRollResult.outcomes[index]);
-    const sameResult =
-      bestResult.payout === wheelRollResult.payout &&
-      bestResult.totalBet === wheelRollResult.totalBet &&
-      sameOutcomes;
-
-    if (!sameResult) {
-      console.warn('[DecodeLogs] BetSettled / Wheel Roll mismatch. Using Wheel Roll result.', {
-        betSettled: {
-          betId: bestResult.betId.toString(),
-          payout: bestResult.payout.toString(),
-          totalBet: bestResult.totalBet.toString(),
-          outcomes: bestResult.outcomes.map(o => o.toString()),
-        },
-        roll: {
-          betId: wheelRollResult.betId.toString(),
-          payout: wheelRollResult.payout.toString(),
-          totalBet: wheelRollResult.totalBet.toString(),
-          outcomes: wheelRollResult.outcomes.map(o => o.toString()),
-        },
-      });
-
-      return {
-        payout: wheelRollResult.payout,
-        totalBet: wheelRollResult.totalBet,
-        outcomes: wheelRollResult.outcomes,
-      };
-    }
-  }
-  
   if (bestResult) {
     return {
       payout: bestResult.payout,
@@ -321,10 +232,10 @@ export function useGameResultFlow() {
   const activeBetIdRef = useRef<bigint | null>(null);
   const isDelegatedModeRef = useRef(false);
 
-  const startPlacing = useCallback(() => {
+  const startPlacing = useCallback((delegated = false) => {
     resolvedRef.current = false;
     activeBetIdRef.current = null;
-    isDelegatedModeRef.current = false;
+    isDelegatedModeRef.current = delegated;
     setState({ phase: 'placing' });
   }, []);
 
@@ -354,7 +265,9 @@ export function useGameResultFlow() {
     if (resolvedRef.current) return;
     resolvedRef.current = true;
     activeBetIdRef.current = null;
-    setState({ phase: 'error', message });
+    isDelegatedModeRef.current = false;
+    setState(null);
+    if (typeof window !== 'undefined') alert(message);
   }, []);
 
   const close = useCallback(() => {
@@ -365,29 +278,25 @@ export function useGameResultFlow() {
   }, []);
 
   const waitForStableReceipt = async (txHash: Hex) => {
-    const initialReceipt = await publicClient!.waitForTransactionReceipt({
+    const receipt = await publicClient!.waitForTransactionReceipt({
       hash: txHash,
       confirmations: RESULT_RECEIPT_CONFIRMATIONS,
     });
-
-    // Base RPCs can briefly serve unsafe receipts. Re-read after confirmations
-    // so the decoded event matches the canonical receipt shown by BaseScan.
-    await new Promise((resolve) => setTimeout(resolve, RESULT_RECEIPT_REFETCH_DELAY_MS));
-
-    return publicClient!.getTransactionReceipt({ hash: txHash }).catch(() => initialReceipt);
+    return receipt;
   };
 
   // --- WSS listener: resolves the moment the on-chain event is seen ---
-  // Only used for standard/credits mode where we know the betId.
-  // In delegated mode, we rely solely on the tx receipt to avoid race conditions.
   const handleWssSettled = useCallback((event: BetSettledEvent) => {
     if (resolvedRef.current) return;
-    
-    // In delegated mode, ignore WSS events - use only the tx receipt
-    if (isDelegatedModeRef.current) return;
+
+    if (isDelegatedModeRef.current) {
+      // In delegated mode, we don't know the betId upfront.
+      // If we receive a BetSettled for this player while waiting, assume it's ours.
+      settled(event.payout, event.totalBet, event.outcomes);
+      return;
+    }
 
     const currentBetId = activeBetIdRef.current;
-    // Only accept if we have a known betId and it matches
     if (currentBetId === null) return;
     if (event.betId !== currentBetId) return;
 
@@ -409,7 +318,8 @@ export function useGameResultFlow() {
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      setState({ phase: 'error', message: msg });
+      close();
+      if (typeof window !== 'undefined') alert(msg);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, settlePendingBet, close]);
@@ -450,9 +360,9 @@ export function useGameResultFlow() {
   };
 
   /**
-   * Wait for a delegated play tx (1-tx mode) to be mined and decode BetSettled.
-   * In delegated mode, we ONLY use the tx receipt to avoid race conditions with
-   * the WSS listener potentially capturing unrelated BetSettled events.
+   * Wait for a delegated play tx (1-tx mode).
+   * Primary resolution: WSS BetSettled listener (same source as RecentOutcomes).
+   * The receipt is only used to detect reverts and as a last-resort fallback.
    */
   const waitForDelegatedTx = async (txHash: Hex) => {
     if (!publicClient) {
@@ -473,18 +383,18 @@ export function useGameResultFlow() {
         return;
       }
 
-      console.log('[Delegated Debug] Processing receipt for txHash:', txHash, 'logs count:', receipt.logs.length);
+      // WSS listener should resolve shortly — give it up to 8s
+      for (let i = 0; i < 16 && !resolvedRef.current; i++) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (resolvedRef.current) return;
+
+      // Last resort: decode from receipt if WSS failed
       const result = decodeBetSettledFromLogs(receipt.logs as { data: Hex; topics: Hex[] }[], address);
-      console.log('[Delegated Debug] Final result for player', address, ':', result ? {
-        payout: result.payout.toString(),
-        totalBet: result.totalBet.toString(),
-        outcomes: result.outcomes.map(o => o.toString()),
-      } : null);
-      
       if (result) {
         settled(result.payout, result.totalBet, result.outcomes);
       } else {
-        error('No se encontró el evento BetSettled en el receipt');
+        error('No se encontró el evento BetSettled');
       }
     } catch (e: unknown) {
       if (resolvedRef.current) return;
