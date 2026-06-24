@@ -9,6 +9,7 @@ import { TxModeProvider } from '@/lib/web3/context/TxModeContext'
 import { ReferralProvider } from '@/lib/web3/context/ReferralContext'
 import { TxActivityProvider } from '@/lib/web3/context/TxActivityContext'
 import { BetTokenProvider } from '@/lib/web3/context/BetTokenContext'
+import { SoundProvider } from '@/lib/sound/SoundContext'
 import { PrivyProvider } from '@privy-io/react-auth'
 import { base } from 'wagmi/chains'
 
@@ -46,15 +47,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={config}>
           <GlobalEventListeners />
-          <TxActivityProvider>
-            <TxModeProvider>
-              <BetTokenProvider>
-                <ReferralProvider>
-                  {children}
-                </ReferralProvider>
-              </BetTokenProvider>
-            </TxModeProvider>
-          </TxActivityProvider>
+          <SoundProvider>
+            <TxActivityProvider>
+              <TxModeProvider>
+                <BetTokenProvider>
+                  <ReferralProvider>
+                    {children}
+                  </ReferralProvider>
+                </BetTokenProvider>
+              </TxModeProvider>
+            </TxActivityProvider>
+          </SoundProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>

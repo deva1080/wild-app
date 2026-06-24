@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign, Scissors, File } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -15,6 +15,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const CHOICE_NAMES = ['Rock', 'Paper', 'Scissors'] as const;
@@ -55,10 +56,16 @@ export default function RPSPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.rps);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.rps);
+  const { playClick, playChip, playRandom, playSfx } = useGameAudio('rps');
 
   const [choice, setChoice] = useState<RpsChoice>(0);
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const resultHandledRef = useRef(false);
+  // WIN/LOSS/TIE text waits for this instead of `isResult` directly, so it
+  // appears together with the result sound, in sync with the dealer card's
+  // 0.8s flip reveal instead of popping in the instant the result arrives.
+  const [showResultText, setShowResultText] = useState(false);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -92,10 +99,35 @@ export default function RPSPage() {
   const resultGlow  = isWin ? 'rgba(74,222,128,0.5)' : isTie ? 'rgba(212,160,23,0.45)' : 'rgba(248,113,113,0.5)';
   const resultLabel = isWin ? 'WIN' : isTie ? 'TIE' : 'LOSS';
 
+  // Card-loss / default-result are tied to when the bet actually settles, not
+  // to `loading` — the WSS-driven result can land before bet.play()'s promise
+  // resolves. Delayed 500ms so both the sound and the WIN/LOSS/TIE text line
+  // up with the dealer card's 0.8s flip reveal instead of firing/popping in
+  // ahead of it.
+  useEffect(() => {
+    if (result.state?.phase !== 'result') {
+      resultHandledRef.current = false;
+      setShowResultText(false);
+      return;
+    }
+    if (resultHandledRef.current) return;
+    resultHandledRef.current = true;
+    const { payout } = result.state;
+    const lost = payout === undefined || payout === BigInt(0);
+    const id = setTimeout(() => {
+      playSfx(lost ? 'loss' : 'defaultResult');
+      setShowResultText(true);
+    }, 500);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.state]);
+
   const handlePlay = async () => {
     if (!address) return;
+    playClick();
     if (result.state !== null) result.close();
     setLoading(true);
+    playRandom(['card1', 'card2']);
     try {
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.rps); return; }
 
@@ -233,7 +265,7 @@ export default function RPSPage() {
                 {spinLabel}
               </p>
             )}
-            {isResult && (
+            {showResultText && (
               <div className="flex flex-col items-center gap-1 mt-2" style={{ animation: 'resultFadeIn 0.35s ease-out both' }}>
                 <div
                   className="text-4xl font-black tracking-tight"
@@ -372,12 +404,12 @@ export default function RPSPage() {
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={loading}
-                    onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                    onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
                   <button disabled={loading}
-                    onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                    onClick={() => { playChip(); setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
                   </button>
@@ -388,7 +420,7 @@ export default function RPSPage() {
                   const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val || (v !== 'MAX' && amount === v);
                   return (
-                    <button key={v} disabled={loading} onClick={() => setAmount(val)}
+                    <button key={v} disabled={loading} onClick={() => { playChip(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>
@@ -414,7 +446,7 @@ export default function RPSPage() {
                   <button
                     key={c}
                     disabled={loading}
-                    onClick={() => setChoice(c)}
+                    onClick={() => { playClick(); setChoice(c); }}
                     className={`flex-1 flex items-center gap-2.5 px-3 rounded-xl border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                       choice === c
                         ? 'border-[#debc6e] bg-[linear-gradient(145deg,#a87d32_0%,#debc6e_60%,#8c6825_100%)] shadow-[0_0_14px_rgba(200,146,10,0.18)]'

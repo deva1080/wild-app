@@ -16,6 +16,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -273,6 +274,7 @@ export default function ModernSlotPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(GAME_ADDRESS);
   const result = useGameResultFlow();
   const bet = useBetController(GAME_ADDRESS);
+  const { playClick, playChip } = useGameAudio('modernslot');
 
   const { data: reelsData } = useReadContract({ address: GAME_ADDRESS, abi: abis.modernSlot, functionName: 'REELS' });
   const { data: rowsData }  = useReadContract({ address: GAME_ADDRESS, abi: abis.modernSlot, functionName: 'ROWS' });
@@ -368,6 +370,7 @@ export default function ModernSlotPage() {
 
   const handlePlay = async () => {
     if (!address) return;
+    playClick();
     if (result.state !== null) {
       result.close();
       return;
@@ -625,11 +628,11 @@ export default function ModernSlotPage() {
                   className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <button disabled={loading} onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                  <button disabled={loading} onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6" /></svg>
                   </button>
-                  <button disabled={loading} onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                  <button disabled={loading} onClick={() => { playChip(); setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
                   </button>
@@ -640,7 +643,7 @@ export default function ModernSlotPage() {
                   const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val;
                   return (
-                    <button key={v} disabled={loading} onClick={() => setAmount(val)}
+                    <button key={v} disabled={loading} onClick={() => { playChip(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>

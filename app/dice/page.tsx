@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { CircleDollarSign, Info } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -15,6 +15,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ const BET_TYPES = [
   { id: 2, label: 'LOW',       short: 'LOW',    payout: 230 },
   { id: 3, label: 'EVEN',      short: 'EVEN',   payout: 192 },
   { id: 4, label: 'ODD',       short: 'ODD',    payout: 192 },
+  { id: 5, label: 'ANY DOUBLE', short: 'DBL',   payout: 576 },
   { id: 6, label: 'EXACT DBL', short: 'XDBL',   payout: 3456 },
 ];
 
@@ -51,17 +53,33 @@ const DOT_POSITIONS: Record<number, [number, number][]> = {
   6: [[25, 20], [75, 20], [25, 50], [75, 50], [25, 80], [75, 80]],
 };
 
-function DieFace({ value, size = 64, glow }: { value: number; size?: number; glow?: string }) {
+// The "1" face uses the crown wildcard glyph instead of a plain dot, on every
+// die face we render (flat previews, falling comets, and the 3D cube).
+function FacePips({ value, size }: { value: number; size: number }) {
   const dots = DOT_POSITIONS[value] ?? [];
   const r = size * 0.08;
+  if (value === 1) {
+    const w = r * 6 * 0.8; // crown sized down 20% from a plain dot's footprint
+    const h = w * (307 / 381);
+    return <image href="/svg/wildcard.svg" x={50 - w / 2} y={50 - h / 2} width={w} height={h} preserveAspectRatio="xMidYMid meet" />;
+  }
+  return (
+    <>
+      {dots.map(([cx, cy], i) => (
+        <circle key={i} cx={cx} cy={cy} r={r} fill="#1a1a1a" />
+      ))}
+    </>
+  );
+}
 
+function DieFace({ value, size = 64, glow }: { value: number; size?: number; glow?: string }) {
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 100 100"
       style={{
-        borderRadius: '18%',
+        borderRadius: '11%',
         background: '#fdf8ec',
         boxShadow: glow
           ? `0 4px 20px rgba(0,0,0,0.5), 0 0 24px ${glow}`
@@ -69,39 +87,124 @@ function DieFace({ value, size = 64, glow }: { value: number; size?: number; glo
         flexShrink: 0,
       }}
     >
-      {dots.map(([cx, cy], i) => (
-        <circle key={i} cx={cx} cy={cy} r={r} fill="#1a1a1a" />
-      ))}
+      <FacePips value={value} size={size} />
     </svg>
   );
 }
 
-function DieUnknown({ size = 64 }: { size?: number }) {
+// ── 3D rolling die (CSS cube) ────────────────────────────────────────────────
+// Each face of an actual 6-sided cube is rendered and rotated in 3D space;
+// while `rolling` it tumbles continuously via rAF, then on settling it spins
+// forward (never snapping backward) until the target face points at the
+// viewer — driven by direct DOM writes so the hand-off has no visual pop.
+
+const FACE_PLACEMENT: Record<number, (half: number) => string> = {
+  1: (half) => `translateZ(${half}px)`,
+  6: (half) => `rotateX(180deg) translateZ(${half}px)`,
+  2: (half) => `rotateX(-90deg) translateZ(${half}px)`,
+  5: (half) => `rotateX(90deg) translateZ(${half}px)`,
+  3: (half) => `rotateY(90deg) translateZ(${half}px)`,
+  4: (half) => `rotateY(-90deg) translateZ(${half}px)`,
+};
+
+const DIE_SETTLE_MS = 700; // must match the transition duration below
+
+// Inverse of FACE_PLACEMENT: the cube rotation that brings each face to front.
+const SHOW_ROTATION: Record<number, { x: number; y: number }> = {
+  1: { x: 0, y: 0 },
+  6: { x: 180, y: 0 },
+  2: { x: 90, y: 0 },
+  5: { x: -90, y: 0 },
+  3: { x: 0, y: -90 },
+  4: { x: 0, y: 90 },
+};
+
+function Die3D({ value, size = 64, glow, rolling }: { value?: number; size?: number; glow?: string; rolling?: boolean }) {
+  const half = size / 2;
+  const cubeRef = useRef<HTMLDivElement>(null);
+  const angleRef = useRef({ x: -18, y: 28 });
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    const angle = angleRef.current;
+    cancelAnimationFrame(rafRef.current);
+
+    if (rolling) {
+      // Normalize so the angle doesn't grow without bound across many rolls.
+      angle.x = ((angle.x % 360) + 360) % 360;
+      angle.y = ((angle.y % 360) + 360) % 360;
+      if (cubeRef.current) {
+        cubeRef.current.style.transition = 'none';
+        cubeRef.current.style.transform = `rotateX(${angle.x}deg) rotateY(${angle.y}deg)`;
+      }
+      let last = performance.now();
+      const tick = (now: number) => {
+        const dt = now - last;
+        last = now;
+        angle.x += 0.5 * dt;
+        angle.y += 0.34 * dt;
+        if (cubeRef.current) cubeRef.current.style.transform = `rotateX(${angle.x}deg) rotateY(${angle.y}deg)`;
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+    } else if (value) {
+      // Spin forward to the next pass through the target angle (plus one
+      // extra full turn for flourish) — continuing from wherever it was.
+      const show = SHOW_ROTATION[value] ?? { x: 0, y: 0 };
+      const targetX = Math.ceil(angle.x / 360) * 360 + 360 + show.x;
+      const targetY = Math.ceil(angle.y / 360) * 360 + 360 + show.y;
+      angle.x = targetX;
+      angle.y = targetY;
+      if (cubeRef.current) {
+        cubeRef.current.style.transition = `transform ${DIE_SETTLE_MS}ms cubic-bezier(0.22,1,0.36,1)`;
+        cubeRef.current.style.transform = `rotateX(${targetX}deg) rotateY(${targetY}deg)`;
+      }
+    }
+
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [rolling, value]);
+
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
+    <div
       style={{
-        borderRadius: '18%',
-        background: '#111827',
-        border: '2px solid rgba(222,188,110,0.2)',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+        width: size,
+        height: size,
+        perspective: size * 5,
+        filter: glow && !rolling
+          ? `drop-shadow(0 4px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 20px ${glow})`
+          : 'drop-shadow(0 4px 16px rgba(0,0,0,0.4))',
         flexShrink: 0,
       }}
     >
-      <text
-        x="50"
-        y="65"
-        textAnchor="middle"
-        fontSize="48"
-        fill="rgba(222,188,110,0.3)"
-        fontWeight="bold"
-        fontFamily="monospace"
+      <div
+        ref={cubeRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+          transformStyle: 'preserve-3d',
+          transform: `rotateX(${angleRef.current.x}deg) rotateY(${angleRef.current.y}deg)`,
+        }}
       >
-        ?
-      </text>
-    </svg>
+        {[1, 2, 3, 4, 5, 6].map((v) => (
+          <div
+            key={v}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              borderRadius: size * 0.11,
+              background: '#fdf8ec',
+              backfaceVisibility: 'hidden',
+              transform: FACE_PLACEMENT[v](half),
+            }}
+          >
+            <svg width="100%" height="100%" viewBox="0 0 100 100">
+              <FacePips value={v} size={size} />
+            </svg>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -112,12 +215,18 @@ export default function DicePage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.diceGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.diceGame);
+  const { playClick, playChip, playSfx, playFading } = useGameAudio('dice');
+  // Handles for the in-flight result sound(s) (defaultResult / coinRain), so
+  // pressing ROLL again always cuts them off instead of letting a previous
+  // win/loss sound ring out underneath the next roll.
+  const resultSoundHandlesRef = useRef<{ stop: (fadeMs?: number) => void }[]>([]);
 
   const [betType, setBetType] = useState<number>(1); // HIGH default
   const [betData, setBetData] = useState<number>(7); // default sum=7 / double=1
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showResultText, setShowResultText] = useState(false);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -134,6 +243,21 @@ export default function DicePage() {
   const isWin    = isResult && resultPayout !== undefined && resultTotalBet !== undefined && resultPayout > resultTotalBet;
   const isTie    = isResult && resultPayout !== undefined && resultTotalBet !== undefined && resultPayout > BigInt(0) && resultPayout <= resultTotalBet;
   const isLoss   = isResult && (resultPayout === undefined || resultPayout === BigInt(0));
+
+  // Hold the WIN/LOSS text (and its sound) until the dice have visibly
+  // finished settling, plus a beat — instead of popping in/playing the
+  // instant the chain result lands, ahead of the 3D dice animation.
+  useEffect(() => {
+    if (!isResult) { setShowResultText(false); return; }
+    const t = setTimeout(() => {
+      setShowResultText(true);
+      const handles = [playFading('defaultResult'), isWin ? playFading('coinRain') : null]
+        .filter((h): h is { stop: (fadeMs?: number) => void } => h !== null);
+      resultSoundHandlesRef.current = handles;
+    }, DIE_SETTLE_MS + 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isResult]);
 
   // outcome = die1 * 10 + die2
   const outcomeRaw = result.state?.phase === 'result' ? Number(result.state.outcomes?.[0] ?? 0) : 0;
@@ -157,8 +281,12 @@ export default function DicePage() {
 
   const handlePlay = async () => {
     if (!address) return;
+    playClick();
+    resultSoundHandlesRef.current.forEach((h) => h.stop(80));
+    resultSoundHandlesRef.current = [];
     if (result.state !== null) result.close();
     setLoading(true);
+    playSfx('roll');
     try {
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.diceGame); return; }
       const gameChoice = encodeDiceChoice(betType, effectiveBetData, 1);
@@ -303,16 +431,20 @@ export default function DicePage() {
 
         <div className="relative z-10 flex flex-col items-center gap-6">
           {/* Dice pair */}
-          <div className="flex items-center gap-6">
-            {isResult && die1 > 0 ? (
-              <DieFace value={die1} size={110} glow={resultGlow} />
+          <div className="flex items-center gap-15">
+            {loading ? (
+              <Die3D rolling size={110} />
+            ) : isResult && die1 > 0 ? (
+              <Die3D value={die1} size={110} glow={resultGlow} />
             ) : (
-              <DieUnknown size={110} />
+              <DieFace value={1} size={110} />
             )}
-            {isResult && die2 > 0 ? (
-              <DieFace value={die2} size={110} glow={resultGlow} />
+            {loading ? (
+              <Die3D rolling size={110} />
+            ) : isResult && die2 > 0 ? (
+              <Die3D value={die2} size={110} glow={resultGlow} />
             ) : (
-              <DieUnknown size={110} />
+              <DieFace value={1} size={110} />
             )}
           </div>
 
@@ -323,27 +455,25 @@ export default function DicePage() {
             </p>
           )}
 
-          {isResult && (
+          {showResultText && isResult && (
             <div
               className="flex flex-col items-center gap-1"
               style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
             >
-              <div className="flex items-center gap-3">
-                <div
-                  className="text-4xl font-black tracking-tight"
-                  style={{ color: resultColor, textShadow: `0 0 32px ${resultGlow}` }}
-                >
-                  {resultLabel}
-                </div>
-                {die1 > 0 && (
-                  <span className="text-zinc-500 text-lg font-bold">
-                    Sum: <span className="text-zinc-200">{diceSum}</span>
-                    {die1 === die2 && (
-                      <span className="ml-2 text-amber-400 text-sm">Double!</span>
-                    )}
-                  </span>
-                )}
+              <div
+                className="text-6xl font-black tracking-tight"
+                style={{ color: resultColor, textShadow: `0 0 32px ${resultGlow}` }}
+              >
+                {resultLabel}
               </div>
+              {die1 > 0 && (
+                <span className="text-zinc-500 text-lg font-bold">
+                  Sum: <span className="text-zinc-200">{diceSum}</span>
+                  {die1 === die2 && (
+                    <span className="ml-2 text-amber-400 text-sm">Double!</span>
+                  )}
+                </span>
+              )}
               {isWin && resultPayout !== undefined && (
                 <p className="text-base font-bold text-green-300">
                   +{fmtAmt(resultPayout)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
@@ -416,11 +546,11 @@ export default function DicePage() {
                   className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <button disabled={loading} onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                  <button disabled={loading} onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6" /></svg>
                   </button>
-                  <button disabled={loading} onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                  <button disabled={loading} onClick={() => { playChip(); setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
                   </button>
@@ -431,7 +561,7 @@ export default function DicePage() {
                   const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val;
                   return (
-                    <button key={v} disabled={loading} onClick={() => setAmount(val)}
+                    <button key={v} disabled={loading} onClick={() => { playChip(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>
@@ -469,6 +599,7 @@ export default function DicePage() {
                   <p><strong className="text-amber-400">LOW:</strong> Sum 2-6 (7 loses)</p>
                   <p><strong className="text-amber-400">EVEN/ODD:</strong> Sum is even or odd</p>
                   <p><strong className="text-amber-400">SUM:</strong> Exact sum of both dice</p>
+                  <p><strong className="text-amber-400">DBL:</strong> Any double (both dice match)</p>
                   <p><strong className="text-amber-400">XDBL:</strong> Exact double (e.g. two 6s)</p>
                 </div>
               )}
@@ -481,7 +612,7 @@ export default function DicePage() {
                     <button
                       key={bt.id}
                       disabled={loading}
-                      onClick={() => setBetType(bt.id)}
+                      onClick={() => { playClick(); setBetType(bt.id); }}
                       className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-lg border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         active
                           ? 'border-transparent text-[#1a1205]'
@@ -494,14 +625,15 @@ export default function DicePage() {
                   );
                 })}
               </div>
-              <div className="grid grid-cols-2 gap-1">
-                {BET_TYPES.filter(bt => [0, 6].includes(bt.id)).map((bt) => {
+              <div className="grid grid-cols-3 gap-1">
+                {BET_TYPES.filter(bt => [0, 5, 6].includes(bt.id)).map((bt) => {
                   const active = betType === bt.id;
                   return (
                     <button
                       key={bt.id}
                       disabled={loading}
                       onClick={() => {
+                        playClick();
                         setBetType(bt.id);
                         if (bt.id === 0 && (betData < 2 || betData > 12)) setBetData(7);
                         if (bt.id === 6 && (betData < 1 || betData > 6)) setBetData(1);
@@ -530,7 +662,7 @@ export default function DicePage() {
                         <button
                           key={s}
                           disabled={loading}
-                          onClick={() => setBetData(s)}
+                          onClick={() => { playClick(); setBetData(s); }}
                           className={`h-8 rounded text-xs font-bold border transition-all disabled:opacity-40 ${
                             active
                               ? 'border-transparent text-[#1a1205]'
@@ -557,7 +689,7 @@ export default function DicePage() {
                         <button
                           key={d}
                           disabled={loading}
-                          onClick={() => setBetData(d)}
+                          onClick={() => { playClick(); setBetData(d); }}
                           className={`h-8 rounded text-xs font-bold border transition-all disabled:opacity-40 ${
                             active
                               ? 'border-transparent text-[#1a1205]'

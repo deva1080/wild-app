@@ -16,6 +16,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 // This Plinko reuses the WheelGame contract. configId 2 is a symmetric
 // distribution: the contract returns a single outcome = the bin index the
@@ -47,7 +48,10 @@ function binStyle(bp: bigint): { fill: string; text: string; glow: string } {
 }
 
 interface Point { x: number; y: number; }
-interface BallView { pos: Point; trail: Point[] }
+interface BallView { pos: Point; trail: Point[]; squash?: number }
+interface Impact { x: number; y: number; age: number }
+
+const IMPACT_DURATION = 260; // ms, how long a bounce flash/ring stays visible
 
 const BALL_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 // Per-row base duration (ms) at 1× speed. The speed multiplier scales this
@@ -60,6 +64,7 @@ export default function PlinkoPage() {
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.wheel);
   const { config, isLoading: isLoadingConfig } = useWheelConfig(PLINKO_CONFIG_ID);
+  const { playClick, playChip, playSfx } = useGameAudio('plinko');
 
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
@@ -67,6 +72,8 @@ export default function PlinkoPage() {
   const [showFinalResult, setShowFinalResult] = useState(false);
   const [landedBins, setLandedBins] = useState<number[]>([]);
   const [balls, setBalls] = useState<(BallView | null)[]>([]);
+  const [impacts, setImpacts] = useState<Impact[]>([]);
+  const impactsRef = useRef<{ x: number; y: number; start: number }[]>([]);
   const [ballCount, setBallCount] = useState(1);
   const [animSpeed, setAnimSpeed] = useState<1 | 2 | 3>(1); // 1 = slow (default), 3 = fast
   const animSpeedRef = useRef<1 | 2 | 3>(1);
@@ -188,6 +195,8 @@ export default function PlinkoPage() {
     cancelAnimationFrame(rafRef.current);
     setIsDropping(true);
     setLandedBins([]);
+    impactsRef.current = [];
+    setImpacts([]);
 
     const speedMul = 2 / Math.pow(2, animSpeedRef.current - 1); // 1→2x, 2→1x, 3→0.5x
     const stagger = 170 * speedMul;
@@ -215,6 +224,8 @@ export default function PlinkoPage() {
         ...buildTimeline(bin, speedMul, offset),
         delay: i * stagger,
         trail: [] as Point[],
+        lastSegIdx: -1,
+        lastImpactLocal: -Infinity,
       };
     });
 
@@ -228,16 +239,26 @@ export default function PlinkoPage() {
         if (local < 0) return null; // not dropped yet
         if (local >= tr.total) {
           tr.trail = [];
-          return { pos: tr.landing, trail: [] };
+          return { pos: tr.landing, trail: [], squash: 0 };
         }
         // Locate active segment.
         let acc = 0;
         let seg = tr.segs[0];
         let segElapsed = local;
+        let segIdx = 0;
         for (let s = 0; s < tr.segs.length; s++) {
-          if (local < acc + tr.segs[s].dur) { seg = tr.segs[s]; segElapsed = local - acc; break; }
+          if (local < acc + tr.segs[s].dur) { seg = tr.segs[s]; segElapsed = local - acc; segIdx = s; break; }
           acc += tr.segs[s].dur;
         }
+        // Detect a bounce: we just crossed into a new segment, meaning the
+        // ball collided with a peg (or the bin floor) at the previous stop.
+        if (tr.lastSegIdx !== -1 && segIdx !== tr.lastSegIdx) {
+          tr.lastImpactLocal = local;
+          impactsRef.current.push({ x: seg.from.x, y: seg.from.y, start: now });
+          playSfx('bounce');
+        }
+        tr.lastSegIdx = segIdx;
+
         const t = seg.dur > 0 ? Math.min(segElapsed / seg.dur, 1) : 1;
         let pos: Point;
         if (seg.arc > 0) {
@@ -249,22 +270,31 @@ export default function PlinkoPage() {
         }
         tr.trail.unshift(pos);
         if (tr.trail.length > 6) tr.trail.pop();
-        return { pos, trail: [...tr.trail] };
+        // Squash-and-stretch: spikes to 1 right on impact, springs back out.
+        const sinceImpact = local - tr.lastImpactLocal;
+        const squash = Math.exp(-sinceImpact / 45);
+        return { pos, trail: [...tr.trail], squash };
       });
 
       setBalls(views);
+      impactsRef.current = impactsRef.current.filter((im) => now - im.start < IMPACT_DURATION);
+      setImpacts(impactsRef.current.map((im) => ({ x: im.x, y: im.y, age: (now - im.start) / IMPACT_DURATION })));
 
       if (elapsed >= maxEnd) {
-        setBalls(tracks.map((tr) => ({ pos: tr.landing, trail: [] })));
+        setBalls(tracks.map((tr) => ({ pos: tr.landing, trail: [], squash: 0 })));
+        impactsRef.current = [];
+        setImpacts([]);
         setLandedBins(targetBins);
         setIsDropping(false);
         setShowFinalResult(true);
+        playSfx('bucket');
+        playSfx('defaultResult');
         return;
       }
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [buildTimeline, geometry.u]);
+  }, [buildTimeline, geometry.u, playSfx]);
 
   const wasPlayingRef = useRef(false);
 
@@ -290,6 +320,8 @@ export default function PlinkoPage() {
       setShowFinalResult(false);
       setLandedBins([]);
       setBalls([]);
+      impactsRef.current = [];
+      setImpacts([]);
     }
   }, [result.state, dropBalls, binCount]);
 
@@ -297,10 +329,13 @@ export default function PlinkoPage() {
 
   const handlePlay = async () => {
     if (!address || !config) return;
+    playClick();
     cancelAnimationFrame(rafRef.current);
     animStartedRef.current = false;
     setShowFinalResult(false);
     setLandedBins([]);
+    impactsRef.current = [];
+    setImpacts([]);
     // Show the pending balls resting at the top while the bet is placed.
     setBalls(Array.from({ length: ballCount }, () => ({ pos: { x: geometry.cx, y: TOP_Y - 18 }, trail: [] })));
     if (result.state !== null) result.close();
@@ -395,7 +430,7 @@ export default function PlinkoPage() {
               <button
                 key={lvl}
                 disabled={isPlaying}
-                onClick={() => { setAnimSpeed(lvl); animSpeedRef.current = lvl; }}
+                onClick={() => { playClick(); setAnimSpeed(lvl); animSpeedRef.current = lvl; }}
                 className={`px-2 py-1 rounded-md text-[11px] font-black tracking-tight transition-all disabled:cursor-not-allowed ${
                   active
                     ? 'bg-amber-500/20 text-amber-300 shadow-[0_0_8px_rgba(200,146,10,0.4)]'
@@ -462,7 +497,9 @@ export default function PlinkoPage() {
                 <stop offset="0%" stopColor="#debc6e" />
                 <stop offset="100%" stopColor="#8c6825" />
               </linearGradient>
-              <filter id="plinkoGlow">
+              {/* Generous filter region so the blur fades out smoothly instead
+                  of being clipped to the (square) default bounding box. */}
+              <filter id="plinkoGlow" x="-200%" y="-200%" width="500%" height="500%">
                 <feGaussianBlur stdDeviation="3" result="b" />
                 <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
@@ -515,10 +552,30 @@ export default function PlinkoPage() {
               );
             })}
 
+            {/* Bounce impact flashes (rings at pegs/floor the ball just hit) */}
+            {isDropping && impacts.map((im, i) => {
+              if (im.age >= 1) return null;
+              const fade = 1 - im.age;
+              return (
+                <g key={`impact-${i}`}>
+                  <circle cx={im.x} cy={im.y} r={2.5 + im.age * 2} fill="#fff7e0" opacity={fade * 0.85} />
+                  <circle
+                    cx={im.x} cy={im.y}
+                    r={3 + im.age * 10}
+                    fill="none"
+                    stroke="#debc6e"
+                    strokeWidth={1.4}
+                    opacity={fade * 0.55}
+                  />
+                </g>
+              );
+            })}
+
             {/* Balls + motion trails */}
             {balls.map((b, bi) => {
               if (!b) return null;
               const pulse = !isDropping && !showFinalResult && isPlaying;
+              const squash = b.squash ?? 0;
               return (
                 <g key={`ball-${bi}`}>
                   {isDropping && b.trail.map((pt, i) => (
@@ -531,10 +588,11 @@ export default function PlinkoPage() {
                       opacity={0.16 * (1 - i / b.trail.length)}
                     />
                   ))}
-                  <circle
+                  <ellipse
                     cx={b.pos.x}
                     cy={b.pos.y}
-                    r={7}
+                    rx={7 * (1 + squash * 0.32)}
+                    ry={7 * (1 - squash * 0.28)}
                     fill="url(#plinkoBallGrad)"
                     filter="url(#plinkoGlow)"
                     style={{ animation: pulse ? 'plinkoPulse 1s ease-in-out infinite' : undefined }}
@@ -636,12 +694,12 @@ export default function PlinkoPage() {
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={isPlaying}
-                    onClick={() => { if (result.state !== null) result.close(); setAmount(v => (parseFloat(v) + 1).toFixed(2)); }}
+                    onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(v => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
                   <button disabled={isPlaying}
-                    onClick={() => { if (result.state !== null) result.close(); setAmount(v => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
+                    onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(v => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
                   </button>
@@ -654,7 +712,7 @@ export default function PlinkoPage() {
                   return (
                     <button key={v}
                       disabled={isPlaying}
-                      onClick={() => { if (result.state !== null) result.close(); setAmount(val); }}
+                      onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}>
                       {v}
@@ -679,7 +737,7 @@ export default function PlinkoPage() {
                   return (
                     <button key={n}
                       disabled={isPlaying}
-                      onClick={() => { if (result.state !== null) result.close(); setBallCount(n); }}
+                      onClick={() => { playClick(); if (result.state !== null) result.close(); setBallCount(n); }}
                       className={`py-1.5 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}>
                       {n}

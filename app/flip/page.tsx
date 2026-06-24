@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -15,6 +15,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 
@@ -121,10 +122,12 @@ export default function FlipPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.flip);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.flip);
+  const { playClick, playChip, playSfx } = useGameAudio('flip');
 
   const [side, setSide] = useState<0 | 1>(0);
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const resultHandledRef = useRef(false);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -140,6 +143,12 @@ export default function FlipPage() {
   const isResult = resultPhase === 'result';
   const isError = resultPhase === 'error';
   const isWin = isResult && resultPayout !== undefined && resultPayout > BigInt(0);
+  // The coin's spin animation is purely visual — it must stop the instant a
+  // result is known, not when `loading` clears. `loading` only flips false
+  // once bet.play()'s promise resolves, which can lag several seconds behind
+  // the WSS-driven result (waitForSettleTx still polls for confirmations),
+  // leaving the coin spinning after the WIN/LOSS text already shows.
+  const showSpinAnim = isSpinning && !isResult && !isError;
 
   // Show the side that actually landed: player's pick if win, opposite if loss
   const displaySide: 0 | 1 = isResult
@@ -152,13 +161,31 @@ export default function FlipPage() {
     resultPhase === 'waiting-settle' ? 'Confirming…' :
     resultPhase === 'settling' ? 'Resolving…' : '';
 
+  // Play the coin landing sound (plus a coin-rain layer on a win) the moment
+  // the result actually settles — independent of `loading`, for the same
+  // reason `showSpinAnim` is: the result can arrive well before bet.play()'s
+  // promise resolves.
+  useEffect(() => {
+    if (result.state?.phase !== 'result') {
+      resultHandledRef.current = false;
+      return;
+    }
+    if (resultHandledRef.current) return;
+    resultHandledRef.current = true;
+    playSfx('end');
+    if (result.state.payout > BigInt(0)) playSfx('chip1');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.state]);
+
   const handlePlay = async () => {
     if (!address) return;
+    playClick();
 
     // Clear previous result before starting a new game
     if (result.state !== null) result.close();
 
     setLoading(true);
+    playSfx('flip');
     try {
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.flip); return; }
 
@@ -285,7 +312,7 @@ export default function FlipPage() {
 
         {/* Coin — always visible */}
         <div className="relative z-10">
-          <CoinFace side={displaySide} size={220} spinning={isSpinning} />
+          <CoinFace side={displaySide} size={220} spinning={showSpinAnim} />
         </div>
 
         {/* Status text below coin while spinning */}
@@ -373,6 +400,7 @@ export default function FlipPage() {
                   <button
                     disabled={isSpinning}
                     onClick={() => {
+                      playChip();
                       if (result.state !== null) result.close();
                       setAmount((v) => (parseFloat(v) + 1).toFixed(2));
                     }}
@@ -383,6 +411,7 @@ export default function FlipPage() {
                   <button
                     disabled={isSpinning}
                     onClick={() => {
+                      playChip();
                       if (result.state !== null) result.close();
                       setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2));
                     }}
@@ -402,6 +431,7 @@ export default function FlipPage() {
                       key={v}
                       disabled={isSpinning}
                       onClick={() => {
+                        playChip();
                         if (result.state !== null) result.close();
                         setAmount(val);
                       }}
@@ -429,6 +459,7 @@ export default function FlipPage() {
                 <button
                   disabled={isSpinning}
                   onClick={() => {
+                    playClick();
                     if (result.state !== null) result.close();
                     setSide(0);
                   }}
@@ -456,6 +487,7 @@ export default function FlipPage() {
                 <button
                   disabled={isSpinning}
                   onClick={() => {
+                    playClick();
                     if (result.state !== null) result.close();
                     setSide(1);
                   }}

@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { WalletButton } from '@/components/WalletButton';
+import { VolumeControl } from '@/components/VolumeControl';
 import { OnboardingFlow } from '@/components/OnboardingFlow';
 import { QuickSwapModal, QuickSwapVariant } from '@/components/QuickSwapModal';
 
@@ -53,14 +54,23 @@ const IconPlinko = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
-const IconFrogger = ({ className = "w-5 h-5" }: { className?: string }) => (
+const IconRocket = ({ className = "w-5 h-5" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M12 2v20" strokeDasharray="2 4" opacity="0.5" />
-    <path d="M5 22h14" />
-    <path d="M5 2h14" />
-    <circle cx="12" cy="18" r="2" fill="currentColor" />
-    <path d="M12 16v-4" />
-    <polyline points="9 10 12 7 15 10" />
+    <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+    <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+    <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+    <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+  </svg>
+);
+
+const IconFrog = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <ellipse cx="12" cy="14" rx="7" ry="6" />
+    <circle cx="7" cy="7" r="2.2" />
+    <circle cx="17" cy="7" r="2.2" />
+    <circle cx="9.5" cy="13" r="0.8" fill="currentColor" stroke="none" />
+    <circle cx="14.5" cy="13" r="0.8" fill="currentColor" stroke="none" />
+    <path d="M9 17.5c1 .8 5 .8 6 0" />
   </svg>
 );
 
@@ -150,7 +160,8 @@ const navItems = [
   { href: '/keno', label: 'Keno', icon: IconKeno },
   { href: '/slot', label: 'Slots', icon: IconSlot },
   { href: '/modernslot', label: 'Modern Slots', icon: IconModernSlot },
-  { href: '/frogger', label: 'Frogger', icon: IconFrogger },
+  { href: '/rocket', label: 'Rocket', icon: IconRocket },
+  { href: '/frogger', label: 'Frogger', icon: IconFrog },
   { href: '/account', label: 'My Account', icon: Wallet },
 ];
 
@@ -222,7 +233,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
 
-        <div className="p-4 border-t border-amber-400/20">
+        <div className="p-4 border-t border-amber-400/20 space-y-2">
+          <VolumeControl />
           <div className="flex items-center gap-2 bg-[#1a1a1a] border border-amber-400/25 rounded-lg px-3 py-2 text-[11px] font-medium tracking-wide text-zinc-200">
             <IconBase className="w-3.5 h-3.5 text-amber-300" /> Base Network
           </div>

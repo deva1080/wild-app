@@ -16,6 +16,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 
@@ -272,6 +273,7 @@ export default function WheelPage() {
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.wheel);
   const { config, isLoading: isLoadingConfig } = useWheelConfig(0);
+  const { playClick, playChip, playSfx, startLoop, stopLoop, playFading } = useGameAudio('wheel');
 
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
@@ -283,6 +285,9 @@ export default function WheelPage() {
   const rafRef = useRef<number>(0);
   const rotationRef = useRef(0);
   const animStartedRef = useRef(false);
+  // Handle for the in-flight win sound, so "Spin Again" can cut it short
+  // with a quick fade instead of letting it ring out underneath the next spin.
+  const coinRainHandleRef = useRef<{ stop: (fadeMs?: number) => void } | null>(null);
 
   const pendingBetId = contractPendingBet && contractPendingBet !== BigInt(0) ? contractPendingBet : null;
   const fmtAmt = (v: bigint) => Number(formatUnits(v, bet.decimals)).toFixed(2);
@@ -315,7 +320,7 @@ export default function WheelPage() {
     rafRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const stopSpinAndAnimateToResult = useCallback((winningSegment: number) => {
+  const stopSpinAndAnimateToResult = useCallback((winningSegment: number, hasWon: boolean) => {
     cancelAnimationFrame(rafRef.current);
     const currentRotation = rotationRef.current;
     // The pointer is at the top (12 o'clock). We want the winning segment centered under it.
@@ -342,10 +347,18 @@ export default function WheelPage() {
       } else {
         setIsSpinning(false);
         setShowFinalResult(true);
+        stopLoop();
+        if (hasWon) {
+          // 1.5s natural tail fade so the coin rain winds down instead of
+          // cutting off at the clip's end.
+          coinRainHandleRef.current = playFading('coinRain', 1500);
+        } else {
+          playSfx('click3');
+        }
       }
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [segmentAngle]);
+  }, [segmentAngle, stopLoop, playSfx, playFading]);
 
   const wasPlayingRef = useRef(false);
 
@@ -354,8 +367,9 @@ export default function WheelPage() {
       animStartedRef.current = true;
       const raw = Number(result.state.outcomes[0] ?? 0);
       const segment = ((raw % segmentCount) + segmentCount) % segmentCount;
+      const hasWon = result.state.payout > BigInt(0);
       setTargetSegment(segment);
-      stopSpinAndAnimateToResult(segment);
+      stopSpinAndAnimateToResult(segment, hasWon);
     }
     if (result.state && result.state.phase !== 'result') {
       wasPlayingRef.current = true;
@@ -367,8 +381,9 @@ export default function WheelPage() {
       setTargetSegment(null);
       animStartedRef.current = false;
       wasPlayingRef.current = false;
+      stopLoop();
     }
-  }, [result.state, stopSpinAndAnimateToResult]);
+  }, [result.state, stopSpinAndAnimateToResult, stopLoop]);
 
   useEffect(() => {
     return () => cancelAnimationFrame(rafRef.current);
@@ -376,6 +391,9 @@ export default function WheelPage() {
 
   const handlePlay = async () => {
     if (!address || !config) return;
+    playClick();
+    coinRainHandleRef.current?.stop(150);
+    coinRainHandleRef.current = null;
     cancelAnimationFrame(rafRef.current);
     animStartedRef.current = false;
     setShowFinalResult(false);
@@ -383,11 +401,13 @@ export default function WheelPage() {
     if (result.state !== null) result.close();
     setLoading(true);
     startInfiniteSpin();
+    startLoop('spin');
     try {
       if (pendingBetId) {
         result.stuck(pendingBetId as bigint, addresses.games.wheel);
         cancelAnimationFrame(rafRef.current);
         setIsSpinning(false);
+        stopLoop();
         return;
       }
       const gameChoice = encodeWheelChoice(config.configId, 1, BigInt(0), BigInt(0));
@@ -397,6 +417,7 @@ export default function WheelPage() {
       result.error(extractRevertReason(e));
       cancelAnimationFrame(rafRef.current);
       setIsSpinning(false);
+      stopLoop();
     } finally {
       setLoading(false);
     }
@@ -552,7 +573,13 @@ export default function WheelPage() {
                 </p>
               )}
               <button
-                onClick={() => { result.close(); setShowFinalResult(false); setTargetSegment(null); }}
+                onClick={() => {
+                  coinRainHandleRef.current?.stop(150);
+                  coinRainHandleRef.current = null;
+                  result.close();
+                  setShowFinalResult(false);
+                  setTargetSegment(null);
+                }}
                 className="mt-2 px-6 py-2 rounded-lg text-sm font-bold transition-colors"
                 style={{
                   border: '1.5px solid transparent',
@@ -594,12 +621,12 @@ export default function WheelPage() {
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={isPlaying}
-                    onClick={() => { if (result.state !== null) result.close(); setAmount(v => (parseFloat(v) + 1).toFixed(2)); }}
+                    onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(v => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
                   <button disabled={isPlaying}
-                    onClick={() => { if (result.state !== null) result.close(); setAmount(v => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
+                    onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(v => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
                   </button>
@@ -612,7 +639,7 @@ export default function WheelPage() {
                   return (
                     <button key={v}
                       disabled={isPlaying}
-                      onClick={() => { if (result.state !== null) result.close(); setAmount(val); }}
+                      onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}>
                       {v}

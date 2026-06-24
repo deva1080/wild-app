@@ -15,6 +15,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const MULT_OPTIONS = [110, 150, 200, 500, 1000, 5000];
@@ -304,6 +305,7 @@ export default function CrashPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.crash);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.crash);
+  const { playSfx, playRandom, playClick, playChip } = useGameAudio('crash');
 
   const [amount, setAmount] = useState('1');
   const [multiplier, setMultiplier] = useState(200);
@@ -338,10 +340,12 @@ export default function CrashPage() {
     if (result.state?.phase === 'result' && !animStartedRef.current) {
       animStartedRef.current = true;
       const tm = Number(result.state.outcomes[0] ?? BigInt(200));
+      const hasWon = result.state.payout > BigInt(0);
       setTargetMult(tm);
       setDisplayMult(100);
       setAnimating(true);
       setShowFinalResult(false);
+      playSfx('launch');
 
       const startTime = performance.now();
       // 4s base → halved per speed level: 1=4000ms, 2=2000ms, 3=1000ms
@@ -357,6 +361,12 @@ export default function CrashPage() {
           setDisplayMult(tm);
           setAnimating(false);
           setShowFinalResult(true);
+          if (hasWon) {
+            playRandom(['win', 'winAlt']);
+            playSfx('coinRain');
+          } else {
+            playRandom(['lose', 'loseAlt']);
+          }
         }
       };
       rafRef.current = requestAnimationFrame(tick);
@@ -376,6 +386,7 @@ export default function CrashPage() {
   // ── Play handler ─────────────────────────────────────────────────────────
   const handlePlay = async () => {
     if (!address) return;
+    playClick();
 
     // Reset animation state explicitly — React 18 batches result.close() +
     // startPlacing() so the useEffect never sees the null transition.
@@ -461,7 +472,7 @@ export default function CrashPage() {
               <button
                 key={lvl}
                 disabled={isPlaying}
-                onClick={() => { setAnimSpeed(lvl); animSpeedRef.current = lvl; }}
+                onClick={() => { playClick(); setAnimSpeed(lvl); animSpeedRef.current = lvl; }}
                 className={`px-2 py-1 rounded-md text-[11px] font-black tracking-tight transition-all disabled:cursor-not-allowed ${
                   active
                     ? 'bg-amber-500/20 text-amber-300 shadow-[0_0_8px_rgba(200,146,10,0.4)]'
@@ -620,11 +631,11 @@ export default function CrashPage() {
                   className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <button disabled={isPlaying} onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                  <button disabled={isPlaying} onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
-                  <button disabled={isPlaying} onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                  <button disabled={isPlaying} onClick={() => { playChip(); setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
                   </button>
@@ -638,7 +649,7 @@ export default function CrashPage() {
                     <button
                       key={v}
                       disabled={isPlaying}
-                      onClick={() => setAmount(val)}
+                      onClick={() => { playChip(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>
@@ -665,11 +676,11 @@ export default function CrashPage() {
                   {fmtMult(multiplier)}
                 </span>
                 <div className="flex flex-col gap-0.5">
-                  <button disabled={isPlaying} onClick={() => setMultiplier((v) => Math.min(v + 10, 10000))}
+                  <button disabled={isPlaying} onClick={() => { playClick(); setMultiplier((v) => Math.min(v + 10, 10000)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
-                  <button disabled={isPlaying} onClick={() => setMultiplier((v) => Math.max(v - 10, 110))}
+                  <button disabled={isPlaying} onClick={() => { playClick(); setMultiplier((v) => Math.max(v - 10, 110)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
                   </button>
@@ -682,7 +693,7 @@ export default function CrashPage() {
                     <button
                       key={v}
                       disabled={isPlaying}
-                      onClick={() => setMultiplier(v)}
+                      onClick={() => { playClick(); setMultiplier(v); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{fmtMult(v)}</button>

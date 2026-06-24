@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -15,6 +15,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -57,10 +58,27 @@ export default function KenoPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.kenoGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.kenoGame);
+  const { playClick, playChip, playSfx, playFading } = useGameAudio('keno');
+  // Handles for the in-flight result sound(s), so any action taken after a
+  // result (quick pick, clear, new bet) cuts them off immediately instead of
+  // letting a previous win/loss sound ring out underneath the next action.
+  const resultSoundHandlesRef = useRef<{ stop: (fadeMs?: number) => void }[]>([]);
+  const cutResultSounds = () => {
+    resultSoundHandlesRef.current.forEach((h) => h.stop(0));
+    resultSoundHandlesRef.current = [];
+  };
 
   const [picks, setPicks] = useState<Set<number>>(new Set());
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  // Tile-by-tile reveal sweep (left→right, top→bottom = numbers 1..40 in
+  // order) once a bet settles. `revealedCount` tiles are showing their final
+  // hit/miss/drawn color; the rest still look idle until their turn.
+  const [revealedCount, setRevealedCount] = useState(0);
+  const revealStartedRef = useRef(false);
+  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const [animSpeed, setAnimSpeed] = useState<1 | 2 | 3>(1); // 1=slow 120ms/tile, 2=normal 20ms/tile, 3=instant (no sweep)
+  const animSpeedRef = useRef<1 | 2 | 3>(1);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -95,8 +113,57 @@ export default function KenoPage() {
     resultPhase === 'waiting-settle' ? 'Confirming…'   :
     resultPhase === 'settling'       ? 'Drawing…'      : '';
 
+  // Tile-by-tile reveal sweep: numbers 1..40 flip in grid order (left→right,
+  // top→bottom), each flip playing the same "card swap" sfx. Only once the
+  // sweep finishes does the result sound (defaultResult + themed layer) and
+  // the WIN/LOSS block fire — so nothing spoils the result ahead of the grid.
+  useEffect(() => {
+    if (result.state?.phase === 'result' && !revealStartedRef.current) {
+      revealStartedRef.current = true;
+      const won = result.state.payout > BigInt(0);
+
+      if (animSpeedRef.current === 3) {
+        // Fastest setting skips the sweep entirely — show the result instantly.
+        setRevealedCount(TOTAL_NUMBERS);
+        const handles = [playFading('defaultResult'), playFading(won ? 'coinRain' : 'card1')]
+          .filter((h): h is { stop: (fadeMs?: number) => void } => h !== null);
+        resultSoundHandlesRef.current = handles;
+      } else {
+        setRevealedCount(0);
+        const stepMs = animSpeedRef.current === 1 ? 120 : 20;
+
+        let i = 0;
+        const tick = () => {
+          i += 1;
+          setRevealedCount(i);
+          playSfx('card2');
+          if (i < TOTAL_NUMBERS) {
+            revealTimerRef.current = setTimeout(tick, stepMs);
+          } else {
+            const handles = [playFading('defaultResult'), playFading(won ? 'coinRain' : 'card1')]
+              .filter((h): h is { stop: (fadeMs?: number) => void } => h !== null);
+            resultSoundHandlesRef.current = handles;
+          }
+        };
+        revealTimerRef.current = setTimeout(tick, stepMs);
+      }
+    }
+    if (!result.state) {
+      revealStartedRef.current = false;
+      setRevealedCount(0);
+      clearTimeout(revealTimerRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.state]);
+
+  useEffect(() => () => clearTimeout(revealTimerRef.current), []);
+
+  const revealDone = isResult && revealedCount >= TOTAL_NUMBERS;
+
   const togglePick = (n: number) => {
     if (loading || isResult) return;
+    playClick();
+    cutResultSounds();
     setPicks((prev) => {
       const next = new Set(prev);
       if (next.has(n)) {
@@ -108,9 +175,17 @@ export default function KenoPage() {
     });
   };
 
-  const clearPicks = () => setPicks(new Set());
+  const clearPicks = () => {
+    playClick();
+    cutResultSounds();
+    if (result.state !== null) result.close();
+    setPicks(new Set());
+  };
 
   const quickPick = (count: number) => {
+    playClick();
+    cutResultSounds();
+    if (result.state !== null) result.close();
     const shuffled = Array.from({ length: TOTAL_NUMBERS }, (_, i) => i + 1)
       .sort(() => Math.random() - 0.5)
       .slice(0, count);
@@ -119,6 +194,8 @@ export default function KenoPage() {
 
   const handlePlay = async () => {
     if (!address || numPicks === 0) return;
+    playClick();
+    cutResultSounds();
     if (result.state !== null) {
       result.close();
       return;
@@ -139,7 +216,7 @@ export default function KenoPage() {
   // ── Number cell state ─────────────────────────────────────────────────────
 
   function getCellStyle(n: number): string {
-    if (isResult) {
+    if (isResult && revealedCount >= n) {
       const isPick  = picks.has(n);
       const isDrawn = drawnNumbers.has(n);
       if (isPick && isDrawn)  return 'bg-amber-400 text-[#1a1205] border-amber-300 scale-105 shadow-[0_0_10px_rgba(222,188,110,0.7)] font-black';
@@ -201,22 +278,45 @@ export default function KenoPage() {
       {/* ── Top bar ── */}
       <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+
+        {/* ── Reveal speed toggle ── */}
+        <div className="flex items-center gap-0.5 rounded-lg border border-zinc-700/60 bg-zinc-900/70 p-0.5 ml-2 shrink-0">
+          {([1, 2, 3] as const).map((lvl) => {
+            const active = animSpeed === lvl;
+            return (
+              <button
+                key={lvl}
+                disabled={loading}
+                onClick={() => { playClick(); setAnimSpeed(lvl); animSpeedRef.current = lvl; }}
+                className={`px-2 py-1 rounded-md text-[11px] font-black tracking-tight transition-all disabled:cursor-not-allowed ${
+                  active
+                    ? 'bg-amber-500/20 text-amber-300 shadow-[0_0_8px_rgba(200,146,10,0.4)]'
+                    : 'text-zinc-600 hover:text-zinc-400'
+                }`}
+                title={['Slow', 'Normal', 'Instant'][lvl - 1]}
+              >
+                {'›'.repeat(lvl)}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex-1 overflow-hidden ml-2 border-l border-amber-400/20 pl-4">
           <RecentOutcomes
             gameAddress={addresses.games.kenoGame}
-            renderOutcome={(o) => {
-              const mask = BigInt(o);
-              const drawn = decodeMask(mask);
-              const hits = [...picks].filter((n) => drawn.has(n)).length;
-              const bg = hits > 0
-                ? 'bg-amber-400/10 text-amber-300 border-amber-500/30'
-                : 'bg-zinc-800 text-zinc-500 border-zinc-700';
-              return (
-                <div className={`h-6 px-1.5 rounded flex items-center justify-center border font-bold text-[10px] mx-0.5 ${bg}`}>
-                  {hits > 0 ? `${hits}H` : '—'}
-                </div>
-              );
-            }}
+            // This ticker shows BetSettled events from every player on the
+            // contract, not just this wallet — so "hits" can never be scored
+            // against the *current* `picks` state (that's a different bet by
+            // a different player most of the time). It used to do exactly
+            // that, which is why the badges visibly changed every time you
+            // adjusted your own picks. Each entry is rendered from its own
+            // outcome only now, same as the other hard-to-summarize games
+            // (slot/modernslot) do.
+            renderOutcome={() => (
+              <div className="h-6 px-1.5 rounded flex items-center justify-center border font-bold text-[10px] mx-0.5 bg-zinc-800 text-zinc-500 border-zinc-700">
+                🎰
+              </div>
+            )}
           />
         </div>
         <FastTxToggle disabled={loading} />
@@ -237,8 +337,8 @@ export default function KenoPage() {
           <div
             className="w-80 h-48 rounded-full blur-3xl transition-colors duration-700"
             style={{
-              background: isWin  ? 'rgba(74,222,128,0.06)'
-                        : isLoss ? 'rgba(248,113,113,0.06)'
+              background: revealDone && isWin  ? 'rgba(74,222,128,0.06)'
+                        : revealDone && isLoss ? 'rgba(248,113,113,0.06)'
                         : 'rgba(200,146,10,0.04)',
             }}
           />
@@ -260,17 +360,6 @@ export default function KenoPage() {
                 ? 'Pick 1–10 numbers'
                 : `${numPicks} / ${MAX_PICKS} picked`}
             </span>
-            {isResult && (
-              <span
-                className="text-sm font-black"
-                style={{ color: resultColor, textShadow: `0 0 20px ${resultGlow}` }}
-              >
-                {resultLabel} · {hitCount} hit{hitCount !== 1 ? 's' : ''} / {DRAWN_COUNT} drawn
-                {isWin && resultPayout !== undefined && (
-                  <span className="ml-2 text-green-300">+{fmtAmt(resultPayout)} {bet.meta.symbol}</span>
-                )}
-              </span>
-            )}
             {loading && spinLabel && (
               <span className="text-amber-300/40 text-xs font-medium animate-pulse tracking-widest uppercase">
                 {spinLabel}
@@ -291,7 +380,7 @@ export default function KenoPage() {
           )}
           {isResult && (
             <button
-              onClick={() => { result.close(); clearPicks(); }}
+              onClick={clearPicks}
               className="text-[10px] font-bold text-zinc-500 hover:text-zinc-300 border border-zinc-700 hover:border-zinc-500 rounded px-2 py-1 transition-colors"
             >
               NEW GAME
@@ -311,7 +400,10 @@ export default function KenoPage() {
                   onClick={() => togglePick(n)}
                   disabled={loading || (!isPicked && numPicks >= MAX_PICKS && !isResult)}
                   className={`aspect-square rounded-lg border text-xs transition-all duration-150 disabled:cursor-not-allowed ${getCellStyle(n)}`}
-                  style={isPicked && !isResult ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
+                  style={{
+                    ...(isPicked && !isResult ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined),
+                    animation: isResult && revealedCount === n ? 'resultFadeIn 0.25s ease-out both' : undefined,
+                  }}
                 >
                   {n}
                 </button>
@@ -325,7 +417,7 @@ export default function KenoPage() {
               <div className="flex flex-wrap justify-center gap-2">
                 {Object.entries(PAYOUT_TABLE[numPicks] ?? {}).map(([hitsStr, mult]) => {
                   const hits = Number(hitsStr);
-                  const isCurrentHit = isResult && hitCount === hits;
+                  const isCurrentHit = revealDone && hitCount === hits;
                   return (
                     <div
                       key={hits}
@@ -347,10 +439,42 @@ export default function KenoPage() {
               <p className="text-zinc-600 text-xs uppercase tracking-widest font-medium">Select numbers to see payouts</p>
             )}
           </div>
+
+          {/* Result — centered, below the multiplier/payout info */}
+          {revealDone && (
+            <div
+              className="flex flex-col items-center gap-1"
+              style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
+            >
+              <span
+                className="text-base font-black"
+                style={{ color: resultColor, textShadow: `0 0 20px ${resultGlow}` }}
+              >
+                {resultLabel} · {hitCount} hit{hitCount !== 1 ? 's' : ''} / {DRAWN_COUNT} drawn
+              </span>
+              {isWin && resultPayout !== undefined && (
+                <span className="text-sm font-bold text-green-300">
+                  +{fmtAmt(resultPayout)} {bet.meta.symbol}
+                </span>
+              )}
+              <button
+                onClick={clearPicks}
+                className="mt-1 px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wide border transition-all"
+                style={{
+                  color: '#debc6e',
+                  borderColor: 'rgba(222,188,110,0.45)',
+                  background: 'rgba(222,188,110,0.08)',
+                  boxShadow: '0 0 12px rgba(222,188,110,0.2)',
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Legend (during result) */}
-        {isResult && (
+        {revealDone && (
           <div className="relative z-10 flex items-center justify-center gap-4 pb-3 text-[10px] font-medium text-zinc-500">
             <span className="flex items-center gap-1">
               <span className="w-3 h-3 rounded-sm bg-amber-400 inline-block" /> Hit
@@ -406,11 +530,11 @@ export default function KenoPage() {
                   className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
-                  <button disabled={loading} onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                  <button disabled={loading} onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6" /></svg>
                   </button>
-                  <button disabled={loading} onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                  <button disabled={loading} onClick={() => { playChip(); setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 text-xs flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
                   </button>
@@ -421,7 +545,7 @@ export default function KenoPage() {
                   const val = v === 'MAX' ? bet.maxAmount : v;
                   const active = amount === val;
                   return (
-                    <button key={v} disabled={loading} onClick={() => setAmount(val)}
+                    <button key={v} disabled={loading} onClick={() => { playChip(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>

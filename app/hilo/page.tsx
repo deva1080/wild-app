@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign, TrendingUp, TrendingDown } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
@@ -15,6 +15,7 @@ import { useGameResultFlow } from '@/components/GameResultModal';
 import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
+import { useGameAudio } from '@/lib/sound/useGameAudio';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const CARD_LABELS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -153,17 +154,24 @@ export default function HiLoPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.hiLoGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.hiLoGame);
+  const { playClick, playChip, playRandom, playSfx } = useGameAudio('hilo');
 
   const [card, setCard] = useState<number>(() => Math.floor(Math.random() * 13) + 1);
   const [direction, setDirection] = useState<0 | 1>(1); // 0=LO, 1=HI
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
   const [skipFlipping, setSkipFlipping] = useState(false);
+  const resultHandledRef = useRef(false);
+  // WIN/LOSS/TIE text waits for this instead of `isResult` directly, so it
+  // appears together with the result sound, in sync with the card's 0.8s
+  // flip reveal instead of popping in the instant the result arrives.
+  const [showResultText, setShowResultText] = useState(false);
 
   const [skipAngle, setSkipAngle] = useState(0);
 
   const handleSkipCard = () => {
     if (loading || skipFlipping) return;
+    playClick();
     setSkipFlipping(true);
     const nextAngle = skipAngle + 360;
     setSkipAngle(nextAngle);
@@ -205,10 +213,35 @@ export default function HiLoPage() {
   const currentMultiplier = getMultiplierDisplay(card, direction);
   const currentWinChance  = getWinChance(card, direction);
 
+  // Card-loss / default-result are tied to when the bet actually settles, not
+  // to `loading` — the WSS-driven result can land before bet.play()'s promise
+  // resolves (same lag flip.page works around with `showSpinAnim`).
+  useEffect(() => {
+    if (result.state?.phase !== 'result') {
+      resultHandledRef.current = false;
+      setShowResultText(false);
+      return;
+    }
+    if (resultHandledRef.current) return;
+    resultHandledRef.current = true;
+    const { payout } = result.state;
+    const lost = payout === undefined || payout === BigInt(0);
+    // Delayed to land with the drawn card's 0.8s flip reveal instead of
+    // firing the instant the result arrives, ahead of the card animation.
+    const id = setTimeout(() => {
+      playSfx(lost ? 'loss' : 'defaultResult');
+      setShowResultText(true);
+    }, 500);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result.state]);
+
   const handlePlay = async () => {
     if (!address) return;
+    playClick();
     if (result.state !== null) result.close();
     setLoading(true);
+    playRandom(['card1', 'card2']);
     try {
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.hiLoGame); return; }
       const gameChoice = encodeHiLoChoice(card, direction, 1);
@@ -427,7 +460,7 @@ export default function HiLoPage() {
               </p>
             )}
 
-            {isResult && (
+            {showResultText && (
               <div
                 className="flex flex-col items-center gap-1"
                 style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
@@ -569,12 +602,12 @@ export default function HiLoPage() {
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={loading}
-                    onClick={() => setAmount((v) => (parseFloat(v) + 1).toFixed(2))}
+                    onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 15l-6-6-6 6"/></svg>
                   </button>
                   <button disabled={loading}
-                    onClick={() => setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2))}
+                    onClick={() => { playChip(); setAmount((v) => Math.max(0.01, parseFloat(v) - 1).toFixed(2)); }}
                     className="w-5 h-4 rounded bg-zinc-700 text-zinc-300 flex items-center justify-center hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed">
                     <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
                   </button>
@@ -587,7 +620,7 @@ export default function HiLoPage() {
                   return (
                     <button key={v}
                       disabled={loading}
-                      onClick={() => setAmount(val)}
+                      onClick={() => { playChip(); setAmount(val); }}
                       className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}>
                       {v}
@@ -611,7 +644,7 @@ export default function HiLoPage() {
                     <button
                       key={d}
                       disabled={loading}
-                      onClick={() => setDirection(d)}
+                      onClick={() => { playClick(); setDirection(d); }}
                       className={`flex flex-col items-center justify-center gap-1 py-3 rounded-xl border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                         active
                           ? 'border-green-500/60 bg-green-400/10'
