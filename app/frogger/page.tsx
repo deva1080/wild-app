@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign } from 'lucide-react';
 import { formatUnits } from 'viem';
 import { useAccount } from 'wagmi';
@@ -17,6 +17,10 @@ import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
+const STEP_HEIGHT = 52;
+const STEP_GAP = 8;
+const STEP_PITCH = STEP_HEIGHT + STEP_GAP;
+const GROUND_OFFSET = STEP_PITCH; // extra space below step 1 so frog starts on ground
 
 // Steps: mult in bps (110 = 1.10x), label shown in UI
 const STEPS = [
@@ -51,19 +55,21 @@ function LilyPad({
       className="relative flex items-center justify-between px-6 rounded-xl transition-all duration-500"
       style={{
         height: 52,
-        background: isPassed
+        // Longhand background-* only (no `background` shorthand) — mixing
+        // shorthand and longhand in the same style object across re-renders
+        // (e.g. when "Play again" flips isCurrent/isPassed) confuses React's
+        // incremental style diffing and can leave stale gradients behind.
+        backgroundColor: isPassed ? undefined : isCurrent ? '#0d0d0d' : 'rgba(255,255,255,0.02)',
+        backgroundImage: isPassed
           ? 'linear-gradient(90deg, rgba(34,197,94,0.12) 0%, rgba(34,197,94,0.04) 100%)'
           : isCurrent
-          ? 'linear-gradient(90deg, #0d0d0d, #0d0d0d)'
-          : 'rgba(255,255,255,0.02)',
+          ? 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(90deg, #debc6e, #8c6825)'
+          : undefined,
         border: isPassed
           ? '1px solid rgba(34,197,94,0.35)'
           : isCurrent
           ? '2px solid transparent'
           : '1px solid rgba(255,255,255,0.06)',
-        backgroundImage: isCurrent
-          ? 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(90deg, #debc6e, #8c6825)'
-          : undefined,
         backgroundOrigin: isCurrent ? 'border-box' : undefined,
         backgroundClip: isCurrent ? 'padding-box, border-box' : undefined,
         boxShadow: isCurrent
@@ -108,6 +114,45 @@ export default function FroggerPage() {
   const [currentStep, setCurrentStep] = useState(0); // 0 = not started, 1–7 = on that step
   const [lastPayout, setLastPayout] = useState<bigint | null>(null);
   const [gameOver, setGameOver] = useState<'win' | 'loss' | null>(null);
+  // Let-it-ride stake: once a run is going, each jump wagers exactly what the
+  // previous jump paid out. null = no run in progress (use the typed `amount`).
+  const [stakeWei, setStakeWei] = useState<bigint | null>(null);
+  // Sum of every payout collected so far in the current run (what the "how
+  // much you won" indicators show, not just the most recent jump's payout).
+  const [totalWon, setTotalWon] = useState<bigint>(0n);
+  // The amount the player typed before starting the run, restored on reset.
+  const baseAmountRef = useRef('1');
+  const inFlightRef = useRef(false);
+  // Prevents double-processing the same result state (React StrictMode runs
+  // effects twice in dev, and waitForDelegatedTx can call settled() a second
+  // time via its receipt fallback if result.close() was called mid-flight).
+  const resultHandledRef = useRef(false);
+
+  // Auto-shrink the frog/tower visual to whatever space the card actually has,
+  // so it always fits on screen with no scroll instead of clipping or overflowing.
+  const towerCardRef = useRef<HTMLDivElement>(null);
+  const towerGroupRef = useRef<HTMLDivElement>(null);
+  const [towerScale, setTowerScale] = useState(1);
+
+  useEffect(() => {
+    const card = towerCardRef.current;
+    const group = towerGroupRef.current;
+    if (!card || !group) return;
+    const BREATHING_ROOM = 32; // px of padding to keep around the scaled tower
+    const recompute = () => {
+      const availW = card.clientWidth - BREATHING_ROOM * 2;
+      const availH = card.clientHeight - BREATHING_ROOM * 2;
+      const natW = group.offsetWidth;
+      const natH = group.offsetHeight;
+      if (!availW || !availH || !natW || !natH) return;
+      setTowerScale(Math.min(1, availW / natW, availH / natH));
+    };
+    const ro = new ResizeObserver(recompute);
+    ro.observe(card);
+    ro.observe(group);
+    recompute();
+    return () => ro.disconnect();
+  }, []);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -119,7 +164,7 @@ export default function FroggerPage() {
   const isSpinning = loading;
   const isProcessing = isSpinning || ['placing', 'waiting-settle', 'settling'].includes(resultPhase);
   const isActive = currentStep > 0;
-  const isComplete = currentStep > STEPS.length;
+  const isComplete = currentStep >= STEPS.length;
 
   const spinLabel =
     resultPhase === 'placing' ? 'Placing bet…' :
@@ -130,42 +175,61 @@ export default function FroggerPage() {
   const stepIdx = Math.min(currentStep, STEPS.length - 1);
   const nextStep = STEPS[stepIdx];
 
-  // Handle result
+  // Handle result — process ONCE per bet. Do NOT call result.close() here.
+  // Keeping the result state open (resolvedRef stays true inside
+  // useGameResultFlow) prevents waitForDelegatedTx from calling settled() a
+  // second time via its receipt fallback. result.close() is called by
+  // handlePlay at the start of the next jump, at which point the async
+  // waitForDelegatedTx chain has already fully exited.
   useEffect(() => {
     if (result.state?.phase !== 'result') return;
+    if (resultHandledRef.current) return; // guard StrictMode double-run
+    resultHandledRef.current = true;
+
     const payout = result.state.payout;
     const hasWon = payout > 0n;
 
     if (hasWon) {
       setLastPayout(payout);
-      if (currentStep >= STEPS.length) {
-        setGameOver('win');
-        setCurrentStep(STEPS.length + 1); // mark complete
-      } else {
-        setCurrentStep(prev => prev + 1);
-      }
+      setTotalWon((prev) => prev + payout);
+      setStakeWei(payout); // let it ride: next jump wagers exactly what you just won
+      setAmount(fmtAmt(payout));
+      setCurrentStep((prev) => {
+        const next = Math.min(prev + 1, STEPS.length);
+        if (next >= STEPS.length) setGameOver('win');
+        return next;
+      });
     } else {
       setGameOver('loss');
       setLastPayout(null);
+      setStakeWei(null);
     }
-
-    result.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result.state]);
 
   const handlePlay = async () => {
-    if (!address) return;
+    if (!address || inFlightRef.current || isProcessing || !!gameOver || isComplete) return;
+    inFlightRef.current = true;
+    resultHandledRef.current = false; // arm for the next result
+    // Close any previous result now that waitForDelegatedTx is long gone.
     if (result.state !== null) result.close();
     setGameOver(null);
     setLoading(true);
     try {
       if (pendingBetId) { result.stuck(pendingBetId, addresses.games.crash); return; }
+      // First jump of a fresh run: remember the typed amount so reset can restore it.
+      if (stakeWei === null) baseAmountRef.current = amount;
+      // Let it ride: once a run is going, wager the exact (unrounded) payout from
+      // the previous jump rather than the rounded display string in `amount`.
+      const playAmountStr = stakeWei !== null ? formatUnits(stakeWei, bet.decimals) : amount;
       const choice = encodeCrashChoice(BigInt(nextStep.multBps), 1);
-      await bet.play(choice, amount, result, setAmount);
+      await bet.play(choice, playAmountStr, result, setAmount);
       refetchAll();
     } catch (e: unknown) {
       result.error(extractRevertReason(e));
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
   };
 
@@ -174,6 +238,9 @@ export default function FroggerPage() {
     setCurrentStep(0);
     setLastPayout(null);
     setGameOver(null);
+    setStakeWei(null);
+    setTotalWon(0n);
+    setAmount(baseAmountRef.current);
   };
 
   if (!address) {
@@ -197,12 +264,13 @@ export default function FroggerPage() {
     );
   }
 
-  // Frog vertical position: based on currentStep (0 = ground, STEPS.length = top)
-  // Each step is 52px tall + 8px gap = 60px. Frog starts below step 0.
-  const frogBottomPx = currentStep * 60 + 4;
+  // Frog vertical position: currentStep=0 is ground; each successful jump moves
+  // exactly one pitch up (1 pad).
+  const frogBottomPx = currentStep * STEP_PITCH + 4;
+  const towerHeight = STEPS.length * STEP_PITCH + GROUND_OFFSET + 8;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
 
       {/* Global gradient defs */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -232,7 +300,7 @@ export default function FroggerPage() {
       `}</style>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={isProcessing} />
         <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
@@ -254,13 +322,13 @@ export default function FroggerPage() {
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.crash} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
 
       {/* ── Center: tower ── */}
-      <div className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a] flex items-center justify-center">
+      <div ref={towerCardRef} className="flex-1 relative overflow-hidden min-h-0 mx-2 sm:mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a] flex items-center justify-center">
 
         {/* Subtle radial glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -268,10 +336,14 @@ export default function FroggerPage() {
         </div>
 
         {/* Tower */}
-        <div className="relative z-10 flex items-end gap-5 px-6">
+        <div
+          ref={towerGroupRef}
+          className="relative z-10 flex items-end gap-5 px-6 flex-shrink-0"
+          style={{ transform: `scale(${towerScale}) translateY(-8px)` }}
+        >
 
           {/* Frog column */}
-          <div className="relative w-10 flex-shrink-0" style={{ height: STEPS.length * 60 + 8 }}>
+          <div className="relative w-10 flex-shrink-0" style={{ height: towerHeight }}>
             <div
               className="absolute left-0 w-10 h-10 flex items-center justify-center text-2xl select-none transition-all duration-500 ease-out"
               style={{
@@ -300,7 +372,7 @@ export default function FroggerPage() {
           </div>
 
           {/* Steps column */}
-          <div className="flex flex-col-reverse gap-2" style={{ width: 320 }}>
+          <div className="flex flex-col-reverse gap-2" style={{ width: 320, paddingBottom: GROUND_OFFSET }}>
             {STEPS.map((step, idx) => {
               const state =
                 idx < currentStep ? 'passed'
@@ -349,9 +421,9 @@ export default function FroggerPage() {
               style={{ textShadow: gameOver === 'win' ? '0 0 40px rgba(74,222,128,0.6)' : '0 0 40px rgba(248,113,113,0.6)' }}>
               {gameOver === 'win' ? 'MAX WIN!' : 'CRASHED!'}
             </div>
-            {gameOver === 'win' && lastPayout && (
+            {gameOver === 'win' && totalWon > 0n && (
               <p className="mt-2 text-xl font-bold text-green-300">
-                +{fmtAmt(lastPayout)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
+                +{fmtAmt(totalWon)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
               </p>
             )}
             <button
@@ -373,24 +445,24 @@ export default function FroggerPage() {
               animation: 'resultFadeIn 0.3s ease-out both',
             }}
           >
-            +{fmtAmt(lastPayout)} {bet.meta.symbol}
+            +{fmtAmt(totalWon)} {bet.meta.symbol}
           </div>
         )}
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
-              <p className="text-sm font-black uppercase tracking-widest"
+            <div className="p-2.5 sm:p-4 space-y-1.5 sm:space-y-3">
+              <p className="text-xs sm:text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Bet Amount
               </p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
-                <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#frog-gold-grad)" strokeWidth={2} />
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-1 sm:py-2 focus-within:border-amber-400/60 transition-colors">
+                <CircleDollarSign className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" stroke="url(#frog-gold-grad)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
                   value={amount}
@@ -399,7 +471,7 @@ export default function FroggerPage() {
                     if (result.state !== null) result.close();
                     setAmount(e.target.value);
                   }}
-                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="flex-1 min-w-0 bg-transparent text-base sm:text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={isProcessing || isActive}
@@ -430,21 +502,21 @@ export default function FroggerPage() {
                 })}
               </div>
               {isActive && !gameOver && (
-                <p className="text-xs text-amber-500/70 font-medium">Bet locked during run</p>
+                <p className="text-[10px] sm:text-xs text-amber-500/70 font-medium">Bet locked during run</p>
               )}
             </div>
 
             {/* CURRENT STEP INFO */}
-            <div className="p-4 flex flex-col gap-3 border-x border-amber-400/10">
-              <p className="text-sm font-black uppercase tracking-widest"
+            <div className="p-2.5 sm:p-4 flex flex-col gap-1.5 sm:gap-3">
+              <p className="text-xs sm:text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 {gameOver ? 'Result' : isActive ? 'Next Target' : 'First Step'}
               </p>
 
-              <div className="flex-1 flex flex-col items-center justify-center gap-2">
+              <div className="flex-1 flex flex-col items-center justify-center gap-1 sm:gap-2">
                 {!gameOver ? (
                   <>
-                    <div className="text-4xl font-black tabular-nums"
+                    <div className="text-2xl sm:text-4xl font-black tabular-nums"
                       style={{
                         background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                         WebkitBackgroundClip: 'text',
@@ -455,7 +527,7 @@ export default function FroggerPage() {
                       }}>
                       {nextStep.display}
                     </div>
-                    <div className="text-xs text-zinc-500 font-medium tracking-wider uppercase">
+                    <div className="text-[10px] sm:text-xs text-zinc-500 font-medium tracking-wider uppercase">
                       {nextStep.label} of {STEPS.length}
                     </div>
                     {isActive && (
@@ -470,13 +542,13 @@ export default function FroggerPage() {
                   </>
                 ) : (
                   <div className="flex flex-col items-center gap-1">
-                    <div className={`text-3xl font-black ${gameOver === 'win' ? 'text-green-400' : 'text-red-400'}`}
+                    <div className={`text-xl sm:text-3xl font-black ${gameOver === 'win' ? 'text-green-400' : 'text-red-400'}`}
                       style={{ textShadow: gameOver === 'win' ? '0 0 20px rgba(74,222,128,0.5)' : '0 0 20px rgba(248,113,113,0.5)' }}>
                       {gameOver === 'win' ? 'MAX WIN' : 'CRASHED'}
                     </div>
-                    {gameOver === 'win' && lastPayout && (
+                    {gameOver === 'win' && totalWon > 0n && (
                       <p className="text-sm font-bold text-green-300">
-                        +{fmtAmt(lastPayout)} <span className="text-green-400/50">{bet.meta.symbol}</span>
+                        +{fmtAmt(totalWon)} <span className="text-green-400/50">{bet.meta.symbol}</span>
                       </p>
                     )}
                     <button
@@ -490,11 +562,11 @@ export default function FroggerPage() {
             </div>
 
             {/* JUMP button */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={isProcessing || !!gameOver || isComplete}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[64px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 sm:gap-2 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -505,9 +577,9 @@ export default function FroggerPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <span className="text-5xl select-none" style={{ filter: 'drop-shadow(0 0 10px rgba(34,197,94,0.5))' }}>🐸</span>
+                <span className="text-2xl sm:text-5xl select-none" style={{ filter: 'drop-shadow(0 0 10px rgba(34,197,94,0.5))' }}>🐸</span>
                 <span
-                  className="font-black text-3xl tracking-[0.15em]"
+                  className="font-black text-lg sm:text-3xl tracking-[0.1em] sm:tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
