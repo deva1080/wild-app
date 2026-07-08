@@ -13,7 +13,16 @@ const transport = http(rpcUrl && rpcUrl.length > 0 ? rpcUrl : undefined);
 
 const publicClient = createPublicClient({ chain: base, transport });
 
-function readEnvPrivateKey(keyName: 'PRIVATE_WALLET_CALLER_1' | 'PRIVATE_WALLET_CALLER_2'): Hex {
+const CALLER_ENV_KEYS = [
+  'PRIVATE_WALLET_CALLER_1',
+  'PRIVATE_WALLET_CALLER_2',
+  'PRIVATE_WALLET_CALLER_3',
+  'PRIVATE_WALLET_CALLER_4',
+  'PRIVATE_WALLET_CALLER_5',
+  'PRIVATE_WALLET_CALLER_6',
+] as const;
+
+function readEnvPrivateKey(keyName: (typeof CALLER_ENV_KEYS)[number]): Hex {
   const key = process.env[keyName];
   if (!key) {
     throw new Error(`Missing required env var: ${keyName}`);
@@ -28,10 +37,7 @@ function readEnvPrivateKey(keyName: 'PRIVATE_WALLET_CALLER_1' | 'PRIVATE_WALLET_
 }
 
 function buildCallerClients() {
-  const privateKeys = [
-    readEnvPrivateKey('PRIVATE_WALLET_CALLER_1'),
-    readEnvPrivateKey('PRIVATE_WALLET_CALLER_2'),
-  ];
+  const privateKeys = CALLER_ENV_KEYS.map(readEnvPrivateKey);
 
   return privateKeys.map((pk) => {
     const account = privateKeyToAccount(pk);
