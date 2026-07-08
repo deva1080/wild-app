@@ -35,7 +35,7 @@ export function encodeKenoChoice(picks: number[], betCount: number): `0x${string
   }
   return encodeAbiParameters(
     [{ type: 'uint40' }, { type: 'uint16' }],
-    [mask, betCount]
+    [Number(mask), betCount]
   );
 }
 
