@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, Coins } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 
@@ -127,6 +128,7 @@ export default function FlipPage() {
   const [side, setSide] = useState<0 | 1>(0);
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const resultHandledRef = useRef(false);
 
   const pendingBetId =
@@ -234,10 +236,11 @@ export default function FlipPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={isSpinning} />
 
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes 
             gameAddress={addresses.games.flip}
             renderOutcome={(o, i) => {
@@ -257,12 +260,13 @@ export default function FlipPage() {
           />
         </div>
 
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
         <FastTxToggle disabled={isSpinning} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.flip} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
@@ -365,9 +369,9 @@ export default function FlipPage() {
       </div>
 
       {/* ── Bottom controls panel ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* Column 1: BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -444,7 +448,7 @@ export default function FlipPage() {
             </div>
 
             {/* Column 2: CHOOSE SIDE */}
-            <div className="p-4 flex flex-col gap-3 border-x border-amber-400/10 h-full">
+            <div className="p-4 flex flex-col gap-3 h-full">
               <p
                 className="text-sm font-black uppercase tracking-widest text-center"
                 style={{
@@ -463,7 +467,7 @@ export default function FlipPage() {
                     if (result.state !== null) result.close();
                     setSide(0);
                   }}
-                  className={`flex-1 h-full rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex-1 h-full py-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 0
                       ? 'border-[#debc6e] bg-[linear-gradient(145deg,#a87d32_0%,#debc6e_60%,#8c6825_100%)] shadow-[0_0_20px_rgba(222,188,110,0.25)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
@@ -491,7 +495,7 @@ export default function FlipPage() {
                     if (result.state !== null) result.close();
                     setSide(1);
                   }}
-                  className={`flex-1 h-full rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex-1 h-full py-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 1
                       ? 'border-[#debc6e] bg-[#111111] shadow-[0_0_20px_rgba(222,188,110,0.15)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
@@ -517,7 +521,7 @@ export default function FlipPage() {
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -528,7 +532,7 @@ export default function FlipPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" stroke="url(#flip-btn-grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-8 h-8 sm:w-12 sm:h-12" viewBox="0 0 24 24" fill="none" stroke="url(#flip-btn-grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <defs><linearGradient id="flip-btn-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stopColor="#debc6e"/><stop offset="100%" stopColor="#8c6825"/></linearGradient></defs>
                   <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
                   <path d="M21 3v5h-5"/>
@@ -536,7 +540,7 @@ export default function FlipPage() {
                   <path d="M8 16H3v5"/>
                 </svg>
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -554,6 +558,51 @@ export default function FlipPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Coins className="w-4 h-4" />}
+        title="Coin Flip"
+        description="Coin Flip is the simplest game on the platform: a single golden coin, two faces, one call. You pick Heads or Tails before the flip, the coin spins through a quick 3D animation, and then it lands on exactly one side. There's no partial outcome and no multiplier to choose — it's a straight 50/50 wager where guessing correctly doubles your stake and guessing wrong loses it outright."
+        steps={[
+          'Choose your bet amount using the chip buttons or by typing a custom amount.',
+          'Pick a side — Heads or Tails — using the two large side-select buttons.',
+          'Press Flip to submit the bet; the coin spins while the outcome is resolved on-chain.',
+          'The coin settles on the side that actually landed: if it matches your call, you win.',
+          'A correct call pays out 2.00x your stake; an incorrect call forfeits the full bet, and your balance updates immediately after.',
+        ]}
+        sections={[
+          {
+            title: 'Mechanics: the flip itself',
+            content: (
+              <p className="text-[11px] text-zinc-300 leading-relaxed">
+                Each flip is an independent 50/50 draw between Heads and Tails — the coin has no memory of previous flips, so streaks in either direction don't change the odds of the next one. The side you choose is locked in the moment you submit the bet, before the outcome is generated, so there is no way to react to a result already in motion.
+              </p>
+            ),
+          },
+          {
+            title: 'Payout calculation',
+            content: (
+              <div className="space-y-2 text-[11px] text-zinc-300">
+                <p>
+                  Payout math couldn't be simpler: a correct guess returns exactly double your stake, and a wrong guess returns nothing. A 10.00 {bet.meta.symbol} bet on the winning side pays 20.00 {bet.meta.symbol} — your original stake plus an equal amount in winnings. There are no partial wins, ties, or side bets to track.
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <div className="text-center rounded border border-amber-400/20 bg-amber-400/10 text-amber-300 py-1 font-bold">
+                    Correct → 2.00x
+                  </div>
+                  <div className="text-center rounded border border-zinc-700 bg-zinc-900 text-zinc-400 py-1 font-bold">
+                    Wrong → 0x
+                  </div>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+        tip="Coin Flip is the lowest-variance game on the platform — every round is a flat coin toss with no skill or strategy involved, which makes it a steady, predictable way to size bets if you prefer short, simple rounds over chasing big multipliers."
+        rtp="~95.00%"
+      />
 
     </div>
   );

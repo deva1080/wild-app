@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CircleDollarSign, Info } from 'lucide-react';
+import { CircleDollarSign, Cherry } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -216,12 +217,13 @@ export default function SlotPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.slotGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.slotGame);
-  const { playClick, playChip } = useGameAudio('slot');
+  const { playClick, playChip, playRandom, playSfx } = useGameAudio('slot');
 
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
   const [landedAll, setLandedAll] = useState(false);
   const [showPaytableModal, setShowPaytableModal] = useState(false);
+  const resultAudioKeyRef = useRef<string | null>(null);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -272,9 +274,26 @@ export default function SlotPage() {
 
   const showResult = isResult && landedAll;
 
+  useEffect(() => {
+    if (!showResult || packed === null) return;
+    const audioKey = packed.toString();
+    if (resultAudioKeyRef.current === audioKey) return;
+    resultAudioKeyRef.current = audioKey;
+
+    if (isWin) {
+      const isBigWin = winLines.length > 1 || winLines.some(({ mult }) => mult >= 200);
+      if (isBigWin) playSfx('winBig');
+      else playRandom(['winSmall', 'winSmallAlt']);
+      return;
+    }
+
+    playSfx('defaultResult');
+  }, [showResult, packed, isWin, winLines, playRandom, playSfx]);
+
   const handlePlay = async () => {
     if (!address) return;
     playClick();
+    resultAudioKeyRef.current = null;
     if (result.state !== null) result.close();
     setLoading(true);
     try {
@@ -341,7 +360,7 @@ export default function SlotPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
         <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
@@ -360,21 +379,13 @@ export default function SlotPage() {
             }}
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowPaytableModal(true)}
-          className="h-8 w-8 rounded-lg border border-amber-400/30 bg-zinc-900/70 text-amber-300 hover:bg-zinc-800/80 hover:border-amber-400/60 transition-colors flex items-center justify-center"
-          aria-label="Show pay table info"
-          title="Pay table info"
-        >
-          <Info className="w-4 h-4" />
-        </button>
+        <GameInfoButton onClick={() => setShowPaytableModal(true)} />
         <FastTxToggle disabled={loading} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.slotGame} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
@@ -492,9 +503,9 @@ export default function SlotPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -544,7 +555,7 @@ export default function SlotPage() {
             </div>
 
             {/* SPIN */}
-            <div className="p-4 border-l border-amber-400/10 flex items-center justify-center">
+            <div className="p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={loading}
@@ -580,61 +591,54 @@ export default function SlotPage() {
         </div>
       </div>
 
-      {showPaytableModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-amber-400/30 bg-[#121212] shadow-[0_0_40px_rgba(0,0,0,0.65)]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-400/15">
-              <h3
-                className="text-sm font-black uppercase tracking-widest"
-                style={{
-                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  color: 'transparent',
-                }}
-              >
-                Pay Table
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPaytableModal(false)}
-                className="px-2 py-1 rounded border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="p-4 space-y-3">
-              <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-zinc-300">
-                Probabilidades basadas en `Slot.sol` (pesos on-chain). Un payline de símbolo ocurre cuando salen 3 iguales en una línea.
-              </div>
-
-              <div className="rounded-lg border border-zinc-700/70 bg-zinc-900/50 p-2">
-                <p className="text-[11px] text-zinc-400 uppercase tracking-widest mb-2">Symbol Odds</p>
-                <div className="space-y-1.5">
-                  {SLOT_PROB_STATS.map((s) => (
-                    <div key={s.name} className="grid grid-cols-[1.2fr_0.9fr_1fr_0.8fr] gap-2 items-center text-[11px] rounded border border-zinc-800 px-2 py-1">
-                      <div className="font-bold flex items-center gap-1.5">
-                        <span className="text-base leading-none">{s.label}</span>
-                        <span style={{ color: s.color }}>{s.name}</span>
-                      </div>
-                      <div className="text-zinc-300 tabular-nums" title="Probabilidad de salir en una celda">
-                        Item {fmtPct(s.pItem)}
-                      </div>
-                      <div className="text-amber-300 tabular-nums" title="Probabilidad de 3 iguales en una línea">
-                        Linea {fmtPct(s.pPayline)}
-                      </div>
-                      <div className="text-zinc-400 tabular-nums text-right">
-                        {s.mult}x
-                      </div>
+      <GameInfoModal
+        open={showPaytableModal}
+        onClose={() => setShowPaytableModal(false)}
+        icon={<Cherry className="w-4 h-4" />}
+        title="Slot"
+        description="This is a classic 3x3, 5-payline slot machine built around six symbols — Cherry, Lemon, Orange, Grape, Bell, and Diamond — each with its own on-chain weight and 3-of-a-kind multiplier. Every spin fills all 9 cells of the grid at once, and the machine then checks all 5 paylines (top row, middle row, bottom row, and both diagonals) independently, so a single spin can land more than one winning line at the same time if the grid happens to line up that way. Because each payline is evaluated on its own, your total payout for a spin is simply the sum of whatever every winning line pays, multiplied by your bet — there is no cap on how many of the 5 lines can pay out together."
+        steps={[
+          'Choose your bet amount using the chip buttons or the input field.',
+          'Press Spin to fill the 3x3 grid — each of the 9 cells lands independently on one of the 6 weighted symbols.',
+          'All 5 paylines (top, middle, bottom, and both diagonals) are checked for 3 matching symbols in a row.',
+          'Every payline that lands 3-of-a-kind pays that symbol multiplier on your bet, and a spin can win on multiple paylines at once.',
+          'Winnings from every winning payline are added together and paid out; a spin with no 3-in-a-row payline on any of the 5 lines is a loss.',
+        ]}
+        sections={[
+          {
+            title: 'Symbol Weights & Odds',
+            content: (
+              <div className="space-y-1.5">
+                <p className="text-[11px] text-zinc-400 mb-1">
+                  Each symbol has a fixed weight out of {SLOT_TOTAL_WEIGHT.toLocaleString()} total — rarer symbols appear less often per cell but pay dramatically more when 3 line up on a single payline.
+                </p>
+                {SLOT_PROB_STATS.map((s) => (
+                  <div key={s.name} className="grid grid-cols-[1.2fr_0.9fr_1fr_0.8fr] gap-2 items-center text-[11px] rounded border border-zinc-800 px-2 py-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span className="text-base leading-none">{s.label}</span>
+                      <span style={{ color: s.color }}>{s.name}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="text-zinc-300 tabular-nums" title="Probability of landing in a single cell">
+                      Cell {fmtPct(s.pItem)}
+                    </div>
+                    <div className="text-amber-300 tabular-nums" title="Probability of 3-of-a-kind on one specific payline">
+                      3-in-row {fmtPct(s.pPayline)}
+                    </div>
+                    <div className="text-zinc-400 tabular-nums text-right">
+                      {s.mult}x
+                    </div>
+                  </div>
+                ))}
               </div>
-
-              <div className="rounded-lg border border-zinc-700/70 bg-zinc-900/50 p-2">
-                <p className="text-[11px] text-zinc-400 uppercase tracking-widest mb-1">Paylines</p>
+            ),
+          },
+          {
+            title: 'Paylines & Payout Logic',
+            content: (
+              <>
+                <p className="text-[11px] text-zinc-400 mb-1.5">
+                  The 5 evaluated lines, by grid cell index (0-8, read left-to-right top-to-bottom):
+                </p>
                 <div className="grid grid-cols-5 gap-1.5 text-[11px]">
                   {PAYLINE_LABELS.map((label, i) => (
                     <div key={label} className="text-center rounded border border-amber-400/20 bg-amber-400/10 text-amber-300 py-0.5">
@@ -643,13 +647,15 @@ export default function SlotPage() {
                   ))}
                 </div>
                 <p className="text-[10px] text-zinc-500 mt-2">
-                  Nota: la columna "Linea" es por cada payline individual. El slot evalua 5 paylines por spin.
+                  The &quot;3-in-row&quot; figure above is the chance of that specific symbol landing 3-of-a-kind on one given payline. Since all 5 paylines are checked every spin, the overall chance of winning something on a given spin is higher than any single line&apos;s probability — and on lucky spins, two or more paylines can pay out simultaneously (e.g. both diagonals plus the middle row).
                 </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+              </>
+            ),
+          },
+        ]}
+        tip="Diamond is by far the rarest symbol — under 2% weight — but pays the single biggest multiplier on the table at 2525x for one payline; Cherry is the most common symbol and only pays 1x, making it more of a near-miss filler than a real win. Explosion-style bonus mechanics are disabled on this machine, so the 97.02% RTP comes purely from the symbol weights and the 5-payline paytable above, with no hidden mechanic layered on top."
+        rtp="~97.02%"
+      />
     </div>
   );
 }

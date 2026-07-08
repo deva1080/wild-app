@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, Footprints } from 'lucide-react';
 import { formatUnits } from 'viem';
 import { useAccount } from 'wagmi';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const TILE_SIZE = 46;
@@ -130,10 +131,11 @@ export default function FroggerPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.crash);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.crash);
-  const { playClick, playChip } = useGameAudio('frogger');
+  const { playClick, playChip, playSfx } = useGameAudio('frogger');
 
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(0); // 0 = not started, 1–7 = on that step
   const [gameOver, setGameOver] = useState<'win' | 'loss' | null>(null);
   // How many crocs hide in each row. Only changeable before a run starts.
@@ -259,15 +261,16 @@ export default function FroggerPage() {
     setRowReveal((prev) => ({ ...prev, [stepIdx]: { crocs: Array.from(crocs), frog: sel } }));
 
     if (hasWon) {
+      const reachesMaxStep = currentStep + 1 >= STEPS.length;
+      playSfx('jump');
+      if (reachesMaxStep) playSfx('coinRain');
       setTotalWon((prev) => prev + payout);
       setStakeWei(payout); // let it ride: next jump wagers exactly what you just won
       setAmount(fmtAmt(payout));
-      setCurrentStep((prev) => {
-        const next = Math.min(prev + 1, STEPS.length);
-        if (next >= STEPS.length) setGameOver('win');
-        return next;
-      });
+      setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+      if (reachesMaxStep) setGameOver('win');
     } else {
+      playSfx('loss');
       setGameOver('loss');
       setStakeWei(null);
     }
@@ -358,7 +361,8 @@ export default function FroggerPage() {
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={isProcessing} />
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={addresses.games.crash}
             renderOutcome={(o) => {
@@ -373,6 +377,7 @@ export default function FroggerPage() {
             }}
           />
         </div>
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
         <FastTxToggle disabled={isProcessing} />
       </div>
 
@@ -526,7 +531,7 @@ export default function FroggerPage() {
                 {gameOver ? 'Result' : isActive ? 'Next Target' : 'First Step'}
               </p>
 
-              <div className="flex-1 flex flex-col items-center justify-center gap-1 sm:gap-2">
+              <div className="flex-1 flex flex-row flex-wrap sm:flex-col items-center justify-center gap-3 sm:gap-2">
                 {!gameOver ? (
                   <>
                     {!isActive && (
@@ -548,19 +553,21 @@ export default function FroggerPage() {
                         </div>
                       </div>
                     )}
-                    <div className="text-2xl sm:text-4xl font-black tabular-nums"
-                      style={{
-                        background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-                        WebkitBackgroundClip: 'text',
-                        backgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        color: 'transparent',
-                        filter: 'drop-shadow(0 0 8px rgba(222,188,110,0.3))',
-                      }}>
-                      {nextStep.display}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-zinc-500 font-medium tracking-wider uppercase">
-                      {nextStep.label} of {STEPS.length}
+                    <div className="flex flex-col items-center">
+                      <div className="text-2xl sm:text-4xl font-black tabular-nums"
+                        style={{
+                          background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                          WebkitBackgroundClip: 'text',
+                          backgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          color: 'transparent',
+                          filter: 'drop-shadow(0 0 8px rgba(222,188,110,0.3))',
+                        }}>
+                        {nextStep.display}
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-zinc-500 font-medium tracking-wider uppercase">
+                        {nextStep.label} of {STEPS.length}
+                      </div>
                     </div>
                     {isActive && (
                       <button
@@ -604,7 +611,7 @@ export default function FroggerPage() {
               <button
                 onClick={gameOver ? handleReset : handlePlay}
                 disabled={isProcessing || (!gameOver && isComplete)}
-                className="relative w-full h-full min-h-[64px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 sm:gap-2 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -635,6 +642,59 @@ export default function FroggerPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Footprints className="w-4 h-4" />}
+        title="Frogger"
+        description="Frogger is a step-based 'let it ride' game played across 7 rows of lily pads, where each row hides one or more hungry crocodiles lurking beneath the pads. You pick a pad and jump, and if you land safely your entire stake — original bet plus everything won so far — automatically rides forward into the next row at a higher multiplier. Land on a croc at any point, however, and the whole run ends instantly with nothing returned, so every jump is a fresh decision between banking your progress and pushing for a bigger multiplier. You can choose to play with either 1 or 2 crocs hidden per row before starting a run, trading better odds for lower multipliers or worse odds for richer ones."
+        steps={[
+          'Pick a bet amount and decide how many crocs hide in each row — 1 croc per row is safer, 2 crocs per row pays more but is riskier.',
+          'Choose any lily pad on the current row (the pad you pick is cosmetic styling for the animation; it does not change your odds) and tap Jump.',
+          'If your jump lands safely, the full payout — your running stake — automatically becomes the wager for the next row, climbing the pyramid one step at a time.',
+          'After any successful jump you may stop and cash out everything accumulated so far using the Withdraw button, locking in your winnings.',
+          'If you ever land on a croc, the run ends immediately and everything staked in that run is lost; reaching Step 7 without hitting a croc pays out the maximum multiplier for that run.',
+        ]}
+        sections={[
+          {
+            title: 'Steps & Multipliers (1 croc/row)',
+            content: (
+              <>
+                <div className="space-y-1.5">
+                  {BASE_TILES.map((tiles, i) => (
+                    <div key={i} className="grid grid-cols-3 gap-2 items-center text-[11px] rounded border border-zinc-800 px-2 py-1">
+                      <div className="font-bold text-zinc-300">{STEP_LABELS[i]}</div>
+                      <div className="text-zinc-400">{tiles} pads · 🐊×1</div>
+                      <div className="text-amber-300 tabular-nums text-right">
+                        {((tiles / (tiles - 1)) * 1).toFixed(2)}x
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-2">
+                  Each row's multiplier comes directly from its odds: with N pads and 1 hidden croc, the fair payout for surviving that row is N ÷ (N − 1). Choosing 2 crocs per row adds an extra pad to every row, which keeps the math fair but makes each step noticeably harder to clear and pushes every per-step multiplier higher to compensate.
+                </p>
+              </>
+            ),
+          },
+          {
+            title: 'Mechanics breakdown',
+            content: (
+              <div className="space-y-1.5 text-[11px] text-zinc-400">
+                <p>
+                  Frogger runs on the exact same underlying continuous-multiplier engine as Crash: each jump is evaluated as an independent draw against a target multiplier, so the chance of clearing any given row is mathematically tied to that row's displayed payout. There is no memory between rows beyond the stake you choose to carry forward — every jump is a clean, independent bet sized to whatever you currently have riding.
+                </p>
+                <p>
+                  Because the stake compounds, late rows wager far more than your original bet, so the absolute amount at risk grows the further you push — even though each individual jump still resolves at fair, transparent odds.
+                </p>
+              </div>
+            ),
+          },
+        ]}
+        tip="Each successful jump's payout becomes the stake for the next jump. Cashing out early locks in a smaller, safer win; riding further multiplies your stake but risks losing the whole run to a single croc."
+        rtp="~95.00%"
+      />
 
     </div>
   );

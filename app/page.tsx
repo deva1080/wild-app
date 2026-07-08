@@ -15,14 +15,16 @@ const featurePills = [
 ];
 
 const games = [
-  { slug: 'crash',   name: 'Crash',       image: '/images/crash.webp',  description: 'Multiplayer crash rounds with instant cashout.',    mode: 'Arcade',       live: true  },
-  { slug: 'flip',    name: 'Flip',        image: '/images/flip.webp',   description: 'Heads or tails, fast 50/50 payout.',                mode: 'Classic',      live: true  },
-  { slug: 'rps',     name: 'RPS',         image: '/images/rps.webp',    description: 'Rock, paper, scissors against the house.',          mode: 'Classic',      live: true  },
-  { slug: 'wheel',   name: 'Wheel',       image: '/images/wheel.webp',  description: 'Spin and land on your target segment.',             mode: 'Strategy',     live: true  },
-  { slug: 'penalty', name: 'Penalty',     image: '/images/box.webp',    description: 'Pick your shot and beat the keeper.',               mode: 'Skill',        live: false },
-  { slug: 'plinko',  name: 'Plinko',      image: '/images/plinko.webp', description: 'Drop the chip and chase multipliers.',              mode: 'High Variance', live: false },
-  { slug: 'boxes',   name: 'Gacha Boxes', image: '/images/boxes.webp',  description: 'Open mystery boxes for instant reveals.',           mode: 'Loot',         live: false },
-  { slug: 'slots',   name: 'Slots',       image: '/images/slot.webp',   description: 'Classic slots feel with on-chain results.',         mode: 'Jackpot',      live: false },
+  { slug: 'crash',   name: 'Crash',   image: '/images/crash.webp',   description: 'Multiplayer crash rounds with instant cashout.',                     mode: 'Arcade',        live: true },
+  { slug: 'flip',    name: 'Flip',    image: '/images/flip.webp',    description: 'Heads or tails, fast 50/50 payout.',                                 mode: 'Classic',       live: true },
+  { slug: 'rps',     name: 'RPS',     image: '/images/rps.webp',     description: 'Rock, paper, scissors against the house.',                           mode: 'Classic',       live: true },
+  { slug: 'wheel',   name: 'Wheel',   image: '/images/wheel.webp',   description: 'Spin and land on your target segment.',                              mode: 'Strategy',      live: true },
+  { slug: 'dice',    name: 'Dice',    image: '/images/dice.webp',    description: 'Roll the dice and predict the outcome for instant payouts.',          mode: 'Classic',       live: true },
+  { slug: 'keno',    name: 'Keno',    image: '/images/keno.webp',    description: 'Pick your numbers and match the draw for big payouts.',              mode: 'Lottery',       live: true },
+  { slug: 'hilo',    name: 'HiLo',    image: '/images/HiLo.webp',    description: 'Predict higher or lower on each card to multiply your bet.',         mode: 'Strategy',      live: true },
+  { slug: 'frogger', name: 'Frogger', image: '/images/frogger.webp', description: 'Navigate the lanes and cash out before the multiplier crashes.',     mode: 'Arcade',        live: true },
+  { slug: 'plinko',  name: 'Plinko',  image: '/images/plinko.webp',  description: 'Drop the chip and chase multipliers.',                               mode: 'High Variance', live: true },
+  { slug: 'slot',    name: 'Slots',   image: '/images/slot.webp',    description: 'Classic slots feel with on-chain results.',                          mode: 'Jackpot',       live: true },
 ];
 
 export default function Home() {
@@ -67,9 +69,9 @@ export default function Home() {
 
   return (
     <>
-    <div className="p-4 md:p-6 mx-auto flex flex-col gap-4 h-full overflow-hidden">
+    <div className="p-4 md:p-6 mx-auto flex w-full max-w-full flex-col gap-4 overflow-x-hidden lg:h-full lg:overflow-hidden">
       {/* Hero */}
-      <section className="relative overflow-hidden border border-amber-400/30 rounded-2xl h-[386px] md:h-[450px] shrink-0 shadow-[0_0_0_1px_rgba(251,191,36,0.1)]">
+      <section className="relative overflow-hidden border border-amber-400/30 rounded-2xl h-[50vh] md:h-[400px] lg:h-[450px] shrink-0 shadow-[0_0_0_1px_rgba(251,191,36,0.1)]">
         <Image
           src="/hero.webp"
           alt="Hero illustration"
@@ -82,7 +84,7 @@ export default function Home() {
         <div className="relative h-full pl-[44px] md:pl-[52px] pr-6 md:pr-8 py-7 md:py-9 flex items-center">
           <div className="max-w-[692px]">
             <p className="text-[12px] md:text-[14px] font-bold text-amber-200/80 tracking-widest mb-4">WILDCARD ORIGINALS</p>
-            <h1 className="text-[58px] md:text-[106px] leading-[0.85] mb-2.5 flex flex-col gap-0">
+            <h1 className="text-[52px] md:text-[106px] leading-[0.85] mb-2.5 flex flex-col gap-0">
               <span style={{ background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                 PLAY ON-CHAIN.
               </span>
@@ -108,14 +110,14 @@ export default function Home() {
       </section>
 
       {/* Games Row + Right Panel */}
-      <section className="flex-1 min-h-0 overflow-hidden">
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_180px] gap-4 h-full">
-          <div className="relative group/carousel min-h-0 min-w-0">
+      <section className="min-w-0 overflow-x-hidden lg:flex-1 lg:min-h-0 lg:overflow-hidden">
+        <div className="grid min-w-0 gap-4 lg:h-full lg:grid-cols-[minmax(0,1fr)_180px]">
+          <div className="relative min-w-0 group/carousel lg:min-h-0">
             <div
               ref={scrollRef}
-              className="overflow-x-auto scroll-smooth h-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+              className="w-full max-w-full overflow-x-auto overscroll-x-contain scroll-smooth touch-pan-x lg:h-full [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
             >
-            <div className="flex gap-3 min-w-max h-full">
+            <div className="flex gap-3 min-w-max lg:h-full">
               {games.map((g) => {
                 const textShadow = '0 2px 4px #000, 0 0 10px rgba(0,0,0,0.95), 0 0 22px rgba(0,0,0,0.85), 0 0 36px rgba(0,0,0,0.6)';
                 const cardContent = (
@@ -185,14 +187,14 @@ export default function Home() {
                   <Link
                     key={g.slug}
                     href={`/${g.slug}`}
-                    className="group w-[160px] lg:w-auto h-full aspect-[9/16] shrink-0 border border-amber-400/25 rounded-xl bg-[#1a1a1a] hover:border-amber-300/60 transition-colors overflow-hidden"
+                    className="group w-[160px] lg:w-auto aspect-[9/16] lg:h-full shrink-0 border border-amber-400/25 rounded-xl bg-[#1a1a1a] hover:border-amber-300/60 transition-colors overflow-hidden"
                   >
                     {cardContent}
                   </Link>
                 ) : (
                   <div
                     key={g.slug}
-                    className="w-[160px] lg:w-auto h-full aspect-[9/16] shrink-0 border border-zinc-800 rounded-xl bg-[#1a1a1a] overflow-hidden cursor-not-allowed"
+                    className="w-[160px] lg:w-auto aspect-[9/16] lg:h-full shrink-0 border border-zinc-800 rounded-xl bg-[#1a1a1a] overflow-hidden cursor-not-allowed"
                   >
                     {cardContent}
                   </div>
@@ -222,8 +224,11 @@ export default function Home() {
               </svg>
             </button>
           </div>
-
-          <LiveFeed />
+              
+          <div className="hidden lg:contents">
+            <LiveFeed />
+          </div>
+              
         </div>
       </section>
     </div>

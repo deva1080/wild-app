@@ -39,7 +39,13 @@ export const SOUND_MANIFEST: Record<string, GameSoundManifest> = {
     },
   },
   rocket: {},
-  frogger: {},
+  frogger: {
+    music: '/sounds/frogger/frogger-bg.mp3',
+    sfx: {
+      jump: '/sounds/frogger/frogger-jump.mp3',
+      loss: '/sounds/frogger/frogger-loss.mp3',
+    },
+  },
   flip: {
     sfx: {
       flip: '/sounds/flip/coin-flip-1.mp3',
@@ -82,6 +88,20 @@ export const SOUND_MANIFEST: Record<string, GameSoundManifest> = {
       card2: '/sounds/hilo/card-2.mp3',
     },
   },
-  slot: {},
-  modernslot: {},
+  slot: {
+    music: '/sounds/generals/generic-bg.mp3',
+    sfx: {
+      winSmall: '/sounds/slots/slot-win-small.mp3',
+      winSmallAlt: '/sounds/slots/slot-win-small2.mp3',
+      winBig: '/sounds/slots/slot-win-big.mp3',
+    },
+  },
+  modernslot: {
+    music: '/sounds/generals/generic-bg.mp3',
+    sfx: {
+      winSmall: '/sounds/slots/slot-win-small.mp3',
+      winSmallAlt: '/sounds/slots/slot-win-small2.mp3',
+      winBig: '/sounds/slots/slot-win-big.mp3',
+    },
+  },
 };

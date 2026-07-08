@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CircleDollarSign, Info } from 'lucide-react';
+import { CircleDollarSign, Gem } from 'lucide-react';
 import { useAccount, useReadContract } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -17,6 +17,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -121,6 +122,7 @@ function MReel({
   active,
   reelInWin,
   winRows,
+  cellH,
 }: {
   reelIndex: number;
   rows: number;
@@ -130,6 +132,7 @@ function MReel({
   active: boolean;
   reelInWin: boolean;
   winRows: number[];
+  cellH: number;
 }) {
   const finalKey = final ? final.join('-') : '';
 
@@ -161,7 +164,7 @@ function MReel({
     setStrip([...final, ...fillers]);
     setMode('land');
 
-    const startTy = -(N * CELL_H);
+    const startTy = -(N * cellH);
     const dur = LAND_BASE + reelIndex * LAND_STAGGER;
     const startT = performance.now();
     setTy(startTy);
@@ -195,7 +198,7 @@ function MReel({
     >
       <div
         className="relative overflow-hidden rounded-lg border border-amber-400/12 bg-[#070707]"
-        style={{ width: CELL_H, height: CELL_H * rows }}
+        style={{ width: cellH, height: cellH * rows }}
       >
         {/* Strip */}
         <div
@@ -209,8 +212,8 @@ function MReel({
           }}
         >
           {strip.map((s, i) => (
-            <div key={i} className="flex items-center justify-center" style={{ height: CELL_H }}>
-              <span className="leading-none select-none" style={{ fontSize: CELL_H * 0.46 }}>
+            <div key={i} className="flex items-center justify-center" style={{ height: cellH }}>
+              <span className="leading-none select-none" style={{ fontSize: cellH * 0.46 }}>
                 {SYMBOLS[s].emoji}
               </span>
             </div>
@@ -241,8 +244,8 @@ function MReel({
                 key={r}
                 className="pointer-events-none absolute left-0.5 right-0.5 rounded-lg border"
                 style={{
-                  top: r * CELL_H + 2,
-                  height: CELL_H - 4,
+                  top: r * cellH + 2,
+                  height: cellH - 4,
                   borderColor: isWild ? 'rgba(222,188,110,0.7)' : `${color}66`,
                   background: isWild ? 'rgba(222,188,110,0.12)' : `${color}1f`,
                   boxShadow: isWild
@@ -274,7 +277,7 @@ export default function ModernSlotPage() {
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(GAME_ADDRESS);
   const result = useGameResultFlow();
   const bet = useBetController(GAME_ADDRESS);
-  const { playClick, playChip } = useGameAudio('modernslot');
+  const { playClick, playChip, playRandom, playSfx } = useGameAudio('modernslot');
 
   const { data: reelsData } = useReadContract({ address: GAME_ADDRESS, abi: abis.modernSlot, functionName: 'REELS' });
   const { data: rowsData }  = useReadContract({ address: GAME_ADDRESS, abi: abis.modernSlot, functionName: 'ROWS' });
@@ -287,6 +290,24 @@ export default function ModernSlotPage() {
   const [loading, setLoading]   = useState(false);
   const [landedAll, setLandedAll] = useState(false);
   const [showPaytableModal, setShowPaytableModal] = useState(false);
+  const [cellH, setCellH] = useState(CELL_H);
+  const resultAudioKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      if (window.innerWidth < 640) {
+        // Available px for the reel cabinet on mobile:
+        // vw - mx-4(32) - px-3(12) - cabinet p-3(24) - (reels-1)*gap-2(8)
+        const available = window.innerWidth - 32 - 12 - 24 - (reels - 1) * 8;
+        setCellH(Math.min(CELL_H, Math.max(40, Math.floor(available / reels))));
+      } else {
+        setCellH(CELL_H);
+      }
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [reels]);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -360,6 +381,25 @@ export default function ModernSlotPage() {
   const active = isResult && landedAll;
   const spinning = loading && !isResult;
 
+  useEffect(() => {
+    if (!active || packedOutcome === null) return;
+    const audioKey = packedOutcome.toString();
+    if (resultAudioKeyRef.current === audioKey) return;
+    resultAudioKeyRef.current = audioKey;
+
+    if (isWin) {
+      const isBigWin =
+        globalMult > 1n ||
+        winEntries.some(({ length, ways }) => length >= 5 || ways >= 3) ||
+        (win !== undefined && betAmt !== undefined && win >= betAmt * 10n);
+      if (isBigWin) playSfx('winBig');
+      else playRandom(['winSmall', 'winSmallAlt']);
+      return;
+    }
+
+    playSfx('defaultResult');
+  }, [active, packedOutcome, isWin, globalMult, winEntries, win, betAmt, playRandom, playSfx]);
+
   const spinLabel =
     resultPhase === 'placing'        ? 'Placing bet…' :
     resultPhase === 'waiting-settle' ? 'Confirming…'  :
@@ -371,6 +411,7 @@ export default function ModernSlotPage() {
   const handlePlay = async () => {
     if (!address) return;
     playClick();
+    resultAudioKeyRef.current = null;
     if (result.state !== null) {
       result.close();
       return;
@@ -440,9 +481,10 @@ export default function ModernSlotPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={GAME_ADDRESS}
             renderOutcome={() => {
@@ -454,27 +496,19 @@ export default function ModernSlotPage() {
             }}
           />
         </div>
-        <button
-          type="button"
-          onClick={() => setShowPaytableModal(true)}
-          className="h-8 w-8 rounded-lg border border-amber-400/30 bg-zinc-900/70 text-amber-300 hover:bg-zinc-800/80 hover:border-amber-400/60 transition-colors flex items-center justify-center"
-          aria-label="Show pay table info"
-          title="Pay table info"
-        >
-          <Info className="w-4 h-4" />
-        </button>
+        <GameInfoButton onClick={() => setShowPaytableModal(true)} />
         <FastTxToggle disabled={loading} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={GAME_ADDRESS} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
 
       {/* ── Center: reels ── */}
-      <div className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl flex flex-col items-center justify-center border border-amber-400/25 bg-[#0a0a0a] gap-4 py-4">
+      <div className="flex-1 relative overflow-hidden min-h-0 px-3 sm:px-0 mx-4 my-3 rounded-2xl flex flex-col items-center justify-center border border-amber-400/25 bg-[#0a0a0a] gap-4 py-4">
 
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div
@@ -514,6 +548,7 @@ export default function ModernSlotPage() {
                 active={active}
                 reelInWin={winReels.has(reel)}
                 winRows={winRows}
+                cellH={cellH}
               />
             );
           })}
@@ -601,9 +636,9 @@ export default function ModernSlotPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -653,11 +688,11 @@ export default function ModernSlotPage() {
             </div>
 
             {/* SPIN */}
-            <div className="p-4 border-l border-amber-400/10 flex items-center justify-center">
+            <div className="p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="relative w-full h-full rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -681,6 +716,7 @@ export default function ModernSlotPage() {
                 >
                   SPIN
                 </span>
+                <span className="text-[10px] text-zinc-500 font-medium">ways to win</span>
               </button>
             </div>
 
@@ -688,64 +724,75 @@ export default function ModernSlotPage() {
         </div>
       </div>
 
-      {showPaytableModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-amber-400/30 bg-[#121212] shadow-[0_0_40px_rgba(0,0,0,0.65)]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-400/15">
-              <h3
-                className="text-sm font-black uppercase tracking-widest"
-                style={{
-                  background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  color: 'transparent',
-                }}
-              >
-                Pay Table (Contract)
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowPaytableModal(false)}
-                className="px-2 py-1 rounded border border-zinc-700 text-xs text-zinc-300 hover:text-white hover:border-zinc-500 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-zinc-300">
-                WILD (`⭐`) sustituye todos los símbolos y su multiplicador global es producto de todos los WILD (cap {MAX_GLOBAL_MULT.toString()}x).
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {SYMBOLS.slice(0, 6).map((sym) => (
-                  <div key={sym.name} className="rounded-lg border border-zinc-700/70 bg-zinc-900/50 p-2">
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="font-bold flex items-center gap-1.5">
-                        <span className="text-base leading-none">{sym.emoji}</span>
-                        <span style={{ color: sym.color }}>{sym.name}</span>
-                      </span>
-                      <span className="text-zinc-500">base {sym.base}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {payLengths.map((length) => (
-                        <span
-                          key={`${sym.name}-${length}`}
-                          className="text-[11px] px-2 py-0.5 rounded border border-amber-400/20 bg-amber-400/10 text-amber-300"
-                        >
-                          {length === 7 ? '7+' : length}R: {sym.base * (PAY_FACTORS[length] ?? PAY_FACTORS[7])}x
+      <GameInfoModal
+        open={showPaytableModal}
+        onClose={() => setShowPaytableModal(false)}
+        icon={<Gem className="w-4 h-4" />}
+        title="Modern Slot"
+        description={`Modern Slot runs on a ${reels}×${rows} grid using a "ways-to-win" engine rather than fixed paylines: instead of needing symbols on a specific line, the game scans each of the six payable symbols (Cherry, Lemon, Orange, Grape, Bell, Diamond) independently across the reels starting from reel 0, counting how many cells in each consecutive reel contain that symbol (or a WILD substituting for it), and stops counting at the first reel with zero matches. A seventh symbol, WILD ("⭐"), substitutes for any of the six payable symbols when forming a match and additionally carries its own per-cell multiplier of x2, x3, or x5, with respective odds of 70%, 25%, and 5% per WILD landed. Every WILD multiplier present anywhere on the grid is multiplied together into a single global multiplier, which is then applied to the entire win, capped at ${MAX_GLOBAL_MULT.toString()}x — so a grid with two or three WILDs showing higher multipliers can turn an ordinary line win into a dramatically larger payout.`}
+        steps={[
+          'Place your bet amount, then press Spin to send the wager on-chain.',
+          `The ${reels} reels spin independently and land on a ${reels}×${rows} grid of symbols, revealed reel by reel.`,
+          'For each payable symbol, the game counts consecutive matches starting at reel 0 (treating WILD as a match for any symbol) and stops at the first reel with no match; 3 or more consecutive matching reels forms a win for that symbol.',
+          'Each qualifying symbol pays bet × base value × length factor × ways, where "ways" is the product of how many matching cells appear in each counted reel.',
+          'Any WILD cells on the grid each carry their own x2/x3/x5 multiplier; all WILD multipliers present are multiplied together into one global multiplier (capped) and applied to your total win before it is credited.',
+        ]}
+        sections={[
+          {
+            title: 'Pay Table (Contract)',
+            content: (
+              <div>
+                <p className="text-xs text-zinc-300 mb-2 leading-relaxed">
+                  Each payable symbol has a base value and a length factor that scales the payout depending on how many consecutive reels (from reel 0) it matches across — longer streaks pay disproportionately more, not just linearly. The base values and per-length multipliers actually wired into this page are listed below for all six payable symbols.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {SYMBOLS.slice(0, 6).map((sym) => (
+                    <div key={sym.name} className="rounded-lg border border-zinc-700/70 bg-zinc-900/50 p-2">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-bold flex items-center gap-1.5">
+                          <span className="text-base leading-none">{sym.emoji}</span>
+                          <span style={{ color: sym.color }}>{sym.name}</span>
                         </span>
-                      ))}
+                        <span className="text-zinc-500">base {sym.base}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {payLengths.map((length) => (
+                          <span
+                            key={`${sym.name}-${length}`}
+                            className="text-[11px] px-2 py-0.5 rounded border border-amber-400/20 bg-amber-400/10 text-amber-300"
+                          >
+                            {length === 7 ? '7+' : length}R: {sym.base * (PAY_FACTORS[length] ?? PAY_FACTORS[7])}x
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-              <p className="text-[11px] text-zinc-500">
-                Formula: `(bet * payout(symbol,length) * ways) / payDenom`, luego se aplica `globalMultiplier` de WILD.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+            ),
+          },
+          {
+            title: 'WILD Mechanics & Global Multiplier',
+            content: (
+              <div className="text-xs text-zinc-300 space-y-2 leading-relaxed">
+                <p>
+                  WILD ("⭐") is the seventh symbol on the grid. It substitutes for any of the six payable symbols when the engine counts consecutive matches, so a WILD sitting in the reel-2 column can extend or even create a winning streak for whichever symbol benefits most. Independently of substitution, every WILD cell also rolls its own multiplier:
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="px-2 py-0.5 rounded border border-amber-400/20 bg-amber-400/10 text-amber-300 font-mono">x2 · 70%</span>
+                  <span className="px-2 py-0.5 rounded border border-amber-400/20 bg-amber-400/10 text-amber-300 font-mono">x3 · 25%</span>
+                  <span className="px-2 py-0.5 rounded border border-amber-400/20 bg-amber-400/10 text-amber-300 font-mono">x5 · 5%</span>
+                </div>
+                <p>
+                  All WILD multipliers present anywhere on the grid in a single spin are multiplied together (not added) into one global multiplier, which is applied once to the total win across every winning symbol, capped at {MAX_GLOBAL_MULT.toString()}x. A single WILD landing its rare x5 roll is a meaningful boost; two or three WILDs stacking together can compound far beyond any individual symbol's base payout.
+                </p>
+              </div>
+            ),
+          },
+        ]}
+        tip="WILD multipliers stack multiplicatively across the whole grid — landing two or three WILDs can push your payout far past a single symbol win. This is a high-variance game: most spins land no qualifying 3+ streak, but WILD-heavy grids can deliver outsized wins relative to the bet."
+        rtp="~97% (5×3 default)"
+      />
     </div>
   );
 }

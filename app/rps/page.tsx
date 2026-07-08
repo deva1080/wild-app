@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const CHOICE_NAMES = ['Rock', 'Paper', 'Scissors'] as const;
@@ -61,6 +62,7 @@ export default function RPSPage() {
   const [choice, setChoice] = useState<RpsChoice>(0);
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const resultHandledRef = useRef(false);
   // WIN/LOSS/TIE text waits for this instead of `isResult` directly, so it
   // appears together with the result sound, in sync with the dealer card's
@@ -182,10 +184,11 @@ export default function RPSPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
 
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes 
             gameAddress={addresses.games.rps}
             renderOutcome={(o, i) => {
@@ -208,12 +211,13 @@ export default function RPSPage() {
           />
         </div>
 
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
         <FastTxToggle disabled={loading} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.rps} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
@@ -378,12 +382,12 @@ export default function RPSPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -430,7 +434,7 @@ export default function RPSPage() {
             </div>
 
             {/* CHOICE */}
-            <div className="p-4 space-y-2 border-x border-amber-400/10">
+            <div className="p-4 space-y-2">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -466,11 +470,11 @@ export default function RPSPage() {
             </div>
 
             {/* PLAY */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="col-span-2 sm:col-span-1 p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -485,7 +489,7 @@ export default function RPSPage() {
                    <RpsIcon choice={choice} size={48} active={true} />
                 </div>
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -503,6 +507,57 @@ export default function RPSPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Scissors className="w-4 h-4" />}
+        title="Rock Paper Scissors"
+        description="Rock Paper Scissors is the classic hand game played directly against the dealer for real stakes. You choose Rock, Paper, or Scissors and lock in your bet, then the dealer's card flips over to reveal its own hand, drawn independently of your choice. The standard rule decides the result — Rock beats Scissors, Scissors beats Paper, and Paper beats Rock — with a tie awarded whenever you and the dealer reveal the same hand. Every outcome resolves instantly on-chain once the dealer's hand is revealed, so there's no waiting and no ambiguity about how the round was decided."
+        steps={[
+          'Choose your hand: Rock, Paper, or Scissors.',
+          'Set your bet amount using the quick-chip buttons or the input field.',
+          'Press Play to lock in your hand and submit the bet.',
+          "The dealer's card flips to reveal its hand, drawn independently of your pick.",
+          'The classic rule decides the result: a win pays out, a tie returns your stake, and a loss forfeits it.',
+        ]}
+        sections={[
+          {
+            title: 'How a round is decided',
+            content: (
+              <div className="space-y-1.5 text-[11px] text-zinc-400">
+                <p>
+                  Each of the three hands beats exactly one other hand and loses to exactly one other hand, so every matchup is perfectly symmetric. Rock crushes Scissors, Scissors cuts Paper, and Paper covers Rock — whichever hand the dealer reveals, the outcome is determined purely by this fixed cycle, with no hidden weighting toward any particular hand.
+                </p>
+                <p>
+                  Because the dealer's hand is drawn independently of yours from the same three equally likely options, your own choice of Rock, Paper, or Scissors has no effect on your odds — all three picks face identical win, tie, and loss probabilities over the long run.
+                </p>
+              </div>
+            ),
+          },
+          {
+            title: 'Payout table',
+            content: (
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">Win (you beat the dealer)</span>
+                  <span className="text-green-400 font-bold">2.00× payout</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">Tie (same hand as dealer)</span>
+                  <span className="text-amber-300 font-bold">1.00× — bet returned</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">Loss (dealer beats you)</span>
+                  <span className="text-red-400 font-bold">0.00× — bet lost</span>
+                </div>
+              </div>
+            ),
+          },
+        ]}
+        tip="With three equally likely outcomes, there's no strategic edge to favoring any single hand — pick whichever you like and let the odds play out the same way every time."
+        rtp="~95.00%"
+      />
 
     </div>
   );

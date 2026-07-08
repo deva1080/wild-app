@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const MULT_OPTIONS = [110, 150, 200, 500, 1000, 5000];
@@ -310,6 +311,7 @@ export default function CrashPage() {
   const [amount, setAmount] = useState('1');
   const [multiplier, setMultiplier] = useState(200);
   const [loading, setLoading] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Animation
   const [animating, setAnimating] = useState(false);
@@ -461,7 +463,7 @@ export default function CrashPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={isPlaying} />
 
         {/* ── Speed toggle ── */}
@@ -486,7 +488,8 @@ export default function CrashPage() {
           })}
         </div>
 
-        <div className="flex-1 overflow-hidden ml-2 border-l border-amber-400/20 pl-4">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden ml-2 border-l border-amber-400/20 pl-4">
           <RecentOutcomes 
             gameAddress={addresses.games.crash}
             renderOutcome={(o, i) => {
@@ -507,14 +510,15 @@ export default function CrashPage() {
           />
         </div>
 
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          <GameInfoButton onClick={() => setShowInfoModal(true)} />
           <FastTxToggle disabled={isPlaying} />
         </div>
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.crash} betId={pendingBetId as bigint} onSettled={refetchAll} />
         </div>
       )}
@@ -606,9 +610,9 @@ export default function CrashPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -659,7 +663,7 @@ export default function CrashPage() {
             </div>
 
             {/* MULTIPLIER */}
-            <div className="p-4 space-y-3 border-x border-amber-400/10 mx-0">
+            <div className="p-4 space-y-3 mx-0">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -707,7 +711,7 @@ export default function CrashPage() {
               <button
                 onClick={handlePlay}
                 disabled={isPlaying}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -718,9 +722,9 @@ export default function CrashPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <Rocket className="w-12 h-12" stroke="url(#gold-rocket-grad)" strokeWidth={1.8} />
+                <Rocket className="w-8 h-8 sm:w-12 sm:h-12" stroke="url(#gold-rocket-grad)" strokeWidth={1.8} />
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -738,6 +742,50 @@ export default function CrashPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Rocket className="w-4 h-4" />}
+        title="Crash"
+        description="Crash is built around a single decision: how greedy do you want to be? Before launch, you set a target multiplier anywhere from 1.10x up to 100.00x — the higher the target, the bigger the payout, but the lower the chance the climb actually gets there. Once you hit launch, an independent random multiplier is generated for that round and the rocket's flight path is drawn live on the chart, climbing until the moment it crashes. If the multiplier the rocket reaches is at or above your chosen target, you win; if it crashes before reaching your target, the bet is lost in full."
+        steps={[
+          'Choose your bet amount using the chip buttons or the input field, then set a target multiplier between 1.10x and 100.00x using the stepper or one of the quick-target buttons.',
+          'Press Launch to submit your bet — the contract immediately determines the round outcome.',
+          'Watch the chart animate the climb: the line rises from 1.00x and keeps going until it reaches the round\'s crash point.',
+          'If the crash point lands at or above your target, the round resolves as a win and the multiplier is applied to your stake.',
+          'If the crash point lands below your target, the round resolves as a loss and the full stake is forfeited — your balance updates automatically either way.',
+        ]}
+        sections={[
+          {
+            title: 'Targets & odds',
+            content: (
+              <div className="space-y-2 text-[11px] text-zinc-300">
+                <p>
+                  Every target between 1.10x and 100.00x is available, and the round's outcome is drawn from a continuous, uniformly fair distribution — mathematically, the chance of the climb reaching at least M× is approximately 1 ÷ M. That means a 2.00x target wins roughly half the time, a 10.00x target wins roughly one time in ten, and a 100.00x target wins only rarely, but pays out 100 times the stake when it does.
+                </p>
+                <div className="grid grid-cols-3 gap-1.5 pt-1">
+                  {[110, 150, 200, 500, 1000, 5000].map((v) => (
+                    <div key={v} className="text-center rounded border border-amber-400/20 bg-amber-400/10 text-amber-300 py-1 font-bold tabular-nums">
+                      {fmtMult(v)}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: 'Payout calculation',
+            content: (
+              <p className="text-[11px] text-zinc-300 leading-relaxed">
+                Payout is simply your stake multiplied by your chosen target: a 5.00 {bet.meta.symbol} bet on a 3.00x target pays 15.00 {bet.meta.symbol} on a win and nothing on a loss. There is no partial credit for getting close — the only thing that matters is whether the crash point cleared your target before the round ended. Higher targets carry both a bigger multiplier on the win side and a steeper drop in how often that win happens, so the expected return per round is built to balance out across many bets rather than any single one.
+              </p>
+            ),
+          },
+        ]}
+        tip="Low targets (1.10x–2.00x) win often but pay little per round; high targets pay big but land rarely — pick a target that matches how much variance you want, and consider sizing bets smaller as your target climbs."
+        rtp="~95.00%"
+      />
 
     </div>
   );

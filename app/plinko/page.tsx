@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, CircleDot } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -17,6 +17,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 // This Plinko reuses the WheelGame contract. configId 2 is a symmetric
 // distribution: the contract returns a single outcome = the bin index the
@@ -36,6 +37,38 @@ function formatMultiplier(bp: bigint): string {
   if (value === 0) return '0x';
   if (value >= 10 || Number.isInteger(value)) return value + 'x';
   return value.toFixed(1) + 'x';
+}
+
+/**
+ * Computes the live, on-chain-config-dependent net RTP for Plinko.
+ *
+ * Plinko is a different front-end visualization of the exact same on-chain
+ * weighted-wheel contract (WheelGame.sol) as the Wheel game — each "bin" is
+ * just one of the contract's weighted segments. `weightRanges` is CUMULATIVE
+ * (segment i's own weight = weightRanges[i] - weightRanges[i-1], except
+ * segment 0 whose weight = weightRanges[0]; total weight = the last entry).
+ * The internal RTP is the weight-weighted average of the bin multipliers (in
+ * basis points); WheelGame.sol's config validation guarantees that figure is
+ * ≤ 100% internally, but the exact value depends on whatever weights/
+ * multipliers are configured on-chain for this config id. BaseGame.sol's
+ * universal explosionRate mechanic (default 4, not overridden by WheelGame)
+ * silently folds in a flat 5% instant-loss chance on every bet, so the real
+ * net RTP is the internal figure × 0.95.
+ */
+function computePlinkoRtp(weightRanges: bigint[], multipliers: bigint[]): number {
+  if (weightRanges.length === 0 || multipliers.length === 0) return 0;
+  let weightedSum = 0n;
+  let prev = 0n;
+  const totalWeight = weightRanges[weightRanges.length - 1];
+  if (totalWeight <= 0n) return 0;
+  for (let i = 0; i < weightRanges.length; i++) {
+    const binWeight = weightRanges[i] - prev;
+    prev = weightRanges[i];
+    weightedSum += binWeight * (multipliers[i] ?? 0n);
+  }
+  const internalRtp = Number(weightedSum) / (Number(totalWeight) * 10000);
+  const netRtp = internalRtp * 0.95;
+  return netRtp * 100;
 }
 
 // Visual style for a bin based on its multiplier value.
@@ -76,6 +109,7 @@ export default function PlinkoPage() {
   const impactsRef = useRef<{ x: number; y: number; start: number }[]>([]);
   const [ballCount, setBallCount] = useState(1);
   const [animSpeed, setAnimSpeed] = useState<1 | 2 | 3>(1); // 1 = slow (default), 3 = fast
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const animSpeedRef = useRef<1 | 2 | 3>(1);
 
   const rafRef = useRef<number>(0);
@@ -103,6 +137,16 @@ export default function PlinkoPage() {
   const multipliers = useMemo(() => config?.multipliers ?? [], [config]);
   const binCount = multipliers.length || 9;
   const rows = binCount - 1; // decision rows in the binomial lattice
+
+  // Live RTP, computed from the currently-loaded on-chain config. Falls back
+  // to null while config is loading/unavailable so the modal simply omits
+  // the rtp prop rather than showing a stale or invented number.
+  const rtpLabel = useMemo(() => {
+    if (!config || config.weightRanges.length === 0) return null;
+    const pct = computePlinkoRtp(config.weightRanges, config.multipliers);
+    if (!Number.isFinite(pct) || pct <= 0) return null;
+    return `~${pct.toFixed(1)}%`;
+  }, [config]);
 
   // ── Board geometry ─────────────────────────────────────────────────────────
   const geometry = useMemo(() => {
@@ -419,7 +463,7 @@ export default function PlinkoPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={isPlaying} />
 
         {/* ── Speed toggle ── */}
@@ -444,7 +488,8 @@ export default function PlinkoPage() {
           })}
         </div>
 
-        <div className="flex-1 overflow-hidden ml-2 border-l border-amber-400/20 pl-4">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden ml-2 border-l border-amber-400/20 pl-4">
           <RecentOutcomes
             gameAddress={addresses.games.wheel}
             renderOutcome={(o) => {
@@ -461,6 +506,8 @@ export default function PlinkoPage() {
           />
         </div>
 
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
+
         <div className="ml-auto">
           <FastTxToggle disabled={isPlaying} />
         </div>
@@ -468,7 +515,7 @@ export default function PlinkoPage() {
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.wheel} betId={pendingBetId as bigint} onSettled={refetchAll} />
         </div>
       )}
@@ -673,12 +720,12 @@ export default function PlinkoPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p className="text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Bet Amount
@@ -723,7 +770,7 @@ export default function PlinkoPage() {
             </div>
 
             {/* BALLS */}
-            <div className="p-4 border-x border-amber-400/10 space-y-3">
+            <div className="p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-black uppercase tracking-widest"
                   style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
@@ -751,11 +798,11 @@ export default function PlinkoPage() {
             </div>
 
             {/* DROP BUTTON */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="col-span-2 sm:col-span-1 p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={isPlaying || showFinalResult}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -766,13 +813,13 @@ export default function PlinkoPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <svg className="w-11 h-11" viewBox="0 0 24 24" fill="none" stroke="url(#plinko-gold-grad)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-8 h-8 sm:w-11 sm:h-11" viewBox="0 0 24 24" fill="none" stroke="url(#plinko-gold-grad)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="5" r="2.5" />
                   <path d="M12 8v8" />
                   <path d="M8 13l4 4 4-4" />
                 </svg>
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent',
@@ -788,6 +835,50 @@ export default function PlinkoPage() {
         </div>
       </div>
 
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<CircleDot className="w-4 h-4" />}
+        title="Plinko"
+        description="Plinko visualizes a drop of one or more balls onto a pin board: each ball falls from the top, bounces left or right off a row of pegs on every row it passes, and finally comes to rest in one of the bins lined up along the bottom edge. Under the hood, every ball you drop is actually a single weighted-random outcome from the same on-chain wheel-style contract used elsewhere in the app — each bin simply corresponds to one of that contract's pre-configured payout segments, so the ball-and-peg animation is a faithful visualization of a fixed, on-chain-resolved outcome rather than a true physical simulation. You can drop multiple balls in the same round, each with its own independent stake and its own independently resolved bin, which lets you spread a single round across several simultaneous outcomes instead of committing your whole wager to one drop."
+        steps={[
+          'Choose your stake per ball and how many balls to drop in this round (1 to 10) — your total wager for the round is stake × number of balls.',
+          'Press Drop to send the round on-chain; every ball you selected is included in the same transaction and resolved together.',
+          'Each ball animates falling down the peg board independently, bouncing left or right at every row before settling into a bin at the bottom.',
+          'The bin each ball lands in is not arbitrary — it corresponds to one of the contract\'s weighted outcome segments, each carrying its own fixed multiplier.',
+          'Payout for each ball is credited as that ball\'s stake multiplied by its landing bin\'s multiplier, and the results across all balls in the round are summed into your total payout.',
+        ]}
+        sections={[
+          {
+            title: 'Board & Bins',
+            content: (
+              <div>
+                <p className="text-xs text-zinc-300 mb-2 leading-relaxed">
+                  This board currently resolves into {binCount} bins ({rows} peg rows deep). The multiplier shown on each bin is read live from the same on-chain configuration as the rest of the game, not hardcoded, so the values below are exactly what you can land on right now.
+                </p>
+                <div className="grid grid-cols-3 gap-x-3 gap-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {multipliers.map((mult, i) => (
+                    <div key={i} className="flex items-center justify-between text-[11px] rounded border border-zinc-800 px-2 py-1">
+                      <span className="text-zinc-300 font-mono font-bold">{formatMultiplier(mult)}</span>
+                      <span className="text-zinc-500 font-mono">{(100 / binCount).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: 'Payout Mechanics',
+            content: (
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Each ball that lands pays out independently as stake × that bin&apos;s multiplier; with several balls dropped in the same round, some can land on low or zero-multiplier bins while others land on higher-paying ones, so your round result is the sum of every ball&apos;s individual outcome rather than a single all-or-nothing result. This makes multi-ball rounds inherently smoother in variance than dropping your entire wager on a single ball, even though the underlying odds per ball never change.
+              </p>
+            ),
+          },
+        ]}
+        tip="Dropping more balls per round doesn't change your odds on any single ball, but it averages your outcomes together within the round — useful if you'd rather see a blend of results than one all-or-nothing drop."
+        rtp={rtpLabel ?? undefined}
+      />
     </div>
   );
 }

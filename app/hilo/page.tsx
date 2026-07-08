@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const CARD_LABELS = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -161,6 +162,7 @@ export default function HiLoPage() {
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
   const [skipFlipping, setSkipFlipping] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const resultHandledRef = useRef(false);
   // WIN/LOSS/TIE text waits for this instead of `isResult` directly, so it
   // appears together with the result sound, in sync with the card's 0.8s
@@ -168,6 +170,14 @@ export default function HiLoPage() {
   const [showResultText, setShowResultText] = useState(false);
 
   const [skipAngle, setSkipAngle] = useState(0);
+  const [cardSize, setCardSize] = useState<'sm' | 'md' | 'lg'>('lg');
+
+  useEffect(() => {
+    const update = () => setCardSize(window.innerWidth < 640 ? 'md' : 'lg');
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   const handleSkipCard = () => {
     if (loading || skipFlipping) return;
@@ -298,10 +308,11 @@ export default function HiLoPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
 
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={addresses.games.hiLoGame}
             renderOutcome={(o) => {
@@ -322,12 +333,14 @@ export default function HiLoPage() {
           />
         </div>
 
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
+
         <FastTxToggle disabled={loading} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.hiLoGame} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
@@ -378,10 +391,10 @@ export default function HiLoPage() {
           />
         </div>
 
-        <div className="relative z-10 flex flex-col md:flex-row items-center gap-6 md:gap-16 px-6">
+        <div className="relative z-10 flex flex-row items-center gap-3 sm:gap-16 px-3 sm:px-6">
 
           {/* Reference card (player's chosen card) */}
-          <div className="flex flex-col items-center gap-3 order-2 md:order-1">
+          <div className="flex flex-col items-center gap-3">
             <div style={{ perspective: '800px' }}>
               <div
                 style={{
@@ -389,17 +402,17 @@ export default function HiLoPage() {
                   transition: 'transform 0.7s ease-in-out',
                   transform: `rotateY(${skipAngle}deg)`,
                   position: 'relative',
-                  width: '144px',
-                  height: '192px',
+                  width: cardSize === 'lg' ? '144px' : '96px',
+                  height: cardSize === 'lg' ? '192px' : '128px',
                 }}
               >
                 {/* Front face (revealed card) */}
                 <div style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', position: 'absolute', inset: 0 }}>
-                  <PlayingCard value={card} size="lg" selected />
+                  <PlayingCard value={card} size={cardSize} selected />
                 </div>
                 {/* Back face (card back) */}
                 <div style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)', position: 'absolute', inset: 0 }}>
-                  <PlayingCard value={0} revealed={false} size="lg" />
+                  <PlayingCard value={0} revealed={false} size={cardSize} />
                 </div>
               </div>
             </div>
@@ -426,7 +439,7 @@ export default function HiLoPage() {
           </div>
 
           {/* Middle: direction + status */}
-          <div className="flex flex-col items-center gap-3 order-1 md:order-2 min-w-[120px]">
+          <div className="flex flex-col items-center gap-3 min-w-[72px] sm:min-w-[120px]">
             <div className="flex flex-col items-center gap-1">
               {direction === 1 ? (
                 <TrendingUp className="w-8 h-8 text-green-400" />
@@ -490,7 +503,7 @@ export default function HiLoPage() {
           </div>
 
           {/* Drawn card (hidden → flip reveal on result) */}
-          <div className="flex flex-col items-center gap-3 order-3">
+          <div className="flex flex-col items-center gap-3">
             <div style={{ perspective: '800px' }}>
               <div
                 style={{
@@ -498,8 +511,8 @@ export default function HiLoPage() {
                   transition: 'transform 0.8s ease-in-out',
                   transform: isResult ? 'rotateY(180deg)' : 'rotateY(0deg)',
                   position: 'relative',
-                  width: '144px',
-                  height: '192px',
+                  width: cardSize === 'lg' ? '144px' : '96px',
+                  height: cardSize === 'lg' ? '192px' : '128px',
                 }}
               >
                 {/* Back face */}
@@ -511,7 +524,7 @@ export default function HiLoPage() {
                     inset: 0,
                   }}
                 >
-                  <PlayingCard value={0} revealed={false} size="lg" />
+                  <PlayingCard value={0} revealed={false} size={cardSize} />
                   {loading && (
                     <div
                       className="absolute inset-0 pointer-events-none rounded-2xl overflow-hidden"
@@ -542,7 +555,7 @@ export default function HiLoPage() {
                   {isResult && drawnCard > 0 && (
                     <PlayingCard
                       value={drawnCard}
-                      size="lg"
+                      size={cardSize}
                       glow={resultGlow}
                     />
                   )}
@@ -581,12 +594,12 @@ export default function HiLoPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p className="text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Bet Amount
@@ -631,7 +644,7 @@ export default function HiLoPage() {
             </div>
 
             {/* DIRECTION (HIGH / LOW) */}
-            <div className="p-4 border-x border-amber-400/10 space-y-3">
+            <div className="p-4 space-y-3">
               <p className="text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Direction
@@ -673,11 +686,11 @@ export default function HiLoPage() {
             </div>
 
             {/* PLAY BUTTON */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="col-span-2 sm:col-span-1 p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -689,7 +702,7 @@ export default function HiLoPage() {
                 }}
               >
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -710,6 +723,60 @@ export default function HiLoPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<TrendingUp className="w-4 h-4" />}
+        title="Hi-Lo"
+        description="Hi-Lo deals you a single reference card, Ace (1) through King (13), and asks you to call whether the next card drawn from the deck will land Higher or Lower than it. Every one of the 13 reference cards and both directions has its own fixed multiplier and win chance, so the board effectively contains 26 separate bets — extreme reference cards make one side a near-lock at a tiny multiplier and the other side a longshot at a huge one, while a reference card near the middle (6, 7, 8) keeps both sides close to a coin flip. You can redraw the reference card for free as many times as you like before committing your bet, so you're always choosing which risk/reward combination suits you, never stuck with a bad card."
+        steps={[
+          'A reference card between Ace (1) and King (13) is drawn and displayed face-up.',
+          'Use Skip Card as many times as you want before betting to redraw a new, random reference card free of charge.',
+          'Choose your direction: HIGH if you think the next card drawn will beat the reference card, or LOW if you think it will fall short of it.',
+          'Enter your bet amount and press Play — a new card is drawn from the deck and compared against the reference card.',
+          'If the drawn card satisfies your chosen direction you win the displayed multiplier; if it ties the reference card your stake is simply returned with no profit or loss.',
+        ]}
+        sections={[
+          {
+            title: 'Mechanics & Tie-Breaking',
+            content: (
+              <div className="text-xs text-zinc-300 space-y-2">
+                <p>
+                  Win chance is just a count of favorable cards out of 13: betting HI on reference card <span className="text-zinc-200 font-bold">7</span> wins on draws of 8–13 (6 of 13 ≈ 46%), while betting LO on the same card wins on draws of 1–6 (also 6 of 13). The two edge cases on the table have a built-in quirk worth knowing: on reference card <span className="text-zinc-200 font-bold">King (13)</span>, betting HI still wins if the drawn card is also a King (draw ≥ 13), and on reference card <span className="text-zinc-200 font-bold">Ace (1)</span>, betting LO still wins if the drawn card is also an Ace (draw ≤ 1). Every other matching draw (a genuine tie on any other reference card) always loses the bet and simply returns your stake.
+                </p>
+                <p>
+                  Multipliers move inversely with win chance. Betting HI on an Ace pays only about <span className="text-amber-300 font-bold">1.04x</span> because almost every card beats an Ace, whereas betting LO on an Ace pays the table maximum of <span className="text-amber-300 font-bold">12.48x</span> because almost nothing beats it downward. The card 7 sits closest to even money, paying roughly <span className="text-amber-300 font-bold">2.08x</span> on either HI or LO since both directions win with 6 of 13 cards.
+                </p>
+              </div>
+            ),
+          },
+          {
+            title: 'Full Payout Table',
+            content: (
+              <div className="text-xs text-zinc-300 space-y-1.5">
+                <p className="text-zinc-400">Multiplier by reference card and direction (HI = drawn card higher, LO = drawn card lower):</p>
+                <div className="grid grid-cols-1 gap-1 font-mono">
+                  {CARD_LABELS.slice(1).map((label, idx) => {
+                    const card = idx + 1;
+                    return (
+                      <div key={card} className="flex items-center gap-2 rounded bg-zinc-800/60 px-2 py-0.5">
+                        <span className="w-6 text-zinc-200 font-bold">{label}</span>
+                        <span className="text-zinc-500">HI</span>
+                        <span className="text-amber-300 font-bold w-16">{getMultiplierDisplay(card, 1)}</span>
+                        <span className="text-zinc-500">LO</span>
+                        <span className="text-amber-300 font-bold w-16">{getMultiplierDisplay(card, 0)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ),
+          },
+        ]}
+        tip="The house edge is spread evenly across the whole table — every single card and direction combination returns roughly the same ~96% RTP, so no reference card or direction is mathematically better than another; pick based on the risk profile (steady small wins vs. rare big multipliers) you prefer, not on hunting for an edge."
+        rtp="~96.00%"
+      />
     </div>
   );
 }

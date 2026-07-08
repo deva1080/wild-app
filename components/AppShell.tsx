@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Gamepad2, Scissors, Wallet } from 'lucide-react';
@@ -182,6 +182,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { address, wildBalance, usdcBalance, creditsBalance, ethBalance } = usePlayerState();
   const [swapModal, setSwapModal] = useState<QuickSwapVariant>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close the mobile nav drawer whenever the route changes.
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [pathname]);
 
   const ethStr = typeof ethBalance === 'bigint' ? Number(formatUnits(ethBalance, 18)).toFixed(4) : '0.0000';
   const ethLow = ethBalance === undefined || (ethBalance as bigint) < ETH_GAS_THRESHOLD;
@@ -191,11 +197,39 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-transparent text-zinc-100 font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside className="border-r border-amber-400/20 bg-[#111111] hidden md:flex flex-col justify-between flex-shrink-0">
+      {/* Mobile drawer backdrop */}
+      {drawerOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden
+        />
+      )}
+
+      {/* Floating drawer toggle (mobile) */}
+      {!drawerOpen && (
+        <button
+          type="button"
+          aria-label="Open menu"
+          onClick={() => setDrawerOpen(true)}
+          className="md:hidden fixed bottom-5 left-4 z-30 grid place-items-center w-12 h-12 rounded-full border border-amber-400/40 bg-[#161616]/95 backdrop-blur text-amber-200 shadow-lg shadow-black/40 hover:bg-[#1f1f1f] active:scale-95 transition-all"
+        >
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </button>
+      )}
+
+      {/* Sidebar — static on desktop, slide-in drawer on mobile */}
+      <aside
+        className={`border-r border-amber-400/20 bg-[#111111] flex flex-col justify-between flex-shrink-0 z-50
+          fixed inset-y-0 left-0 w-64 max-w-[80vw] overflow-y-auto transform transition-transform duration-300 ease-in-out
+          md:static md:translate-x-0 md:w-auto md:max-w-none md:overflow-visible md:z-auto
+          ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
         <div>
-          <Link href="/" className="flex flex-col items-start gap-1 p-5 pb-6">
-            
+          <Link href="/" onClick={() => setDrawerOpen(false)} className="flex flex-col items-start gap-1 p-5 pb-6">
+
             <Image
               src="/title.webp"
               alt="Wildcard Games"
@@ -213,6 +247,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={href}
                   href={href}
+                  onClick={() => setDrawerOpen(false)}
                   className={`relative flex items-center gap-3 pl-5 pr-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                     active
                       ? 'bg-gradient-to-r from-amber-400/15 to-amber-400/0 text-amber-100 border border-amber-400/35'
@@ -270,14 +305,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 {/* Native ETH (gas) — turns red when too low to pay gas */}
                 <div
                   title={ethLow ? 'Low ETH for gas. Use Fast TX or top up ETH on Base.' : 'ETH for gas on Base'}
-                  className={`hidden md:flex items-center gap-1.5 border rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] transition-colors ${
+                  className={`hidden xl:flex items-center gap-1.5 border rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] transition-colors ${
                     ethLow ? 'border-red-500/40 text-red-300' : 'border-amber-400/25 text-amber-100 hover:border-amber-300/60'
                   }`}
                 >
                   <span className="leading-none tabular-nums">{ethStr}</span>
                   <span className={`text-[12px] font-bold tracking-widest leading-none ${ethLow ? 'text-red-300/70' : 'text-amber-200/70'}`}>ETH</span>
                 </div>
-                <div className="hidden lg:flex items-center gap-1.5 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
+                <div className="hidden xl:flex items-center gap-1.5 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
                   <span className="leading-none tabular-nums">{usdcStr}</span>
                   <span className="text-[12px] font-bold tracking-widest text-amber-200/70 leading-none">USDC</span>
                 </div>
@@ -301,7 +336,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   type="button"
                   title="Convert to Credits — click to buy"
                   onClick={() => setSwapModal('credits')}
-                  className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/80 hover:bg-amber-400/5 active:scale-95 transition-all rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100 cursor-pointer"
+                  className="hidden lg:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/80 hover:bg-amber-400/5 active:scale-95 transition-all rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100 cursor-pointer"
                 >
                   <span className="leading-none">{formatBalance(creditsBalance)}</span>
                   <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">CREDITS</span>

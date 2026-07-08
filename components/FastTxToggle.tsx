@@ -45,13 +45,13 @@ export function FastTxToggle({ disabled = false }: { disabled?: boolean }) {
       <Zap className={`w-3.5 h-3.5 ${busy ? 'animate-pulse' : ''}`} fill={isFastTx ? '#1a0e00' : 'none'} />
       {isFastTx ? (
         <span className="flex items-center gap-1">
-          TURBO
+          <span className="hidden sm:inline">TURBO</span>
           {remaining !== undefined && (
             <span className="px-1 rounded bg-black/20 text-[10px] tabular-nums">{remaining}</span>
           )}
         </span>
       ) : (
-        <span>⚡ Activate Turbo</span>
+        <span className="hidden sm:inline">Activate Turbo</span>
       )}
     </button>
   );

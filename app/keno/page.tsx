@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, Sparkles } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -24,24 +25,32 @@ const MAX_PICKS = 10;
 const TOTAL_NUMBERS = 40;
 const DRAWN_COUNT = 20;
 
-// Payout table (x100 basis) — mirrors contract _initDefaultPayouts
+// Payout table (x100 basis) — mirrors the on-chain payoutTable set via setPayout()
 const PAYOUT_TABLE: Record<number, Record<number, number>> = {
-  1:  { 1: 268 },
-  2:  { 2: 1152 },
-  3:  { 2: 192, 3: 4416 },
-  4:  { 2: 96, 3: 480, 4: 9600 },
-  5:  { 3: 288, 4: 1152, 5: 48000 },
-  6:  { 3: 192, 4: 672, 5: 9600, 6: 192000 },
-  7:  { 4: 288, 5: 1920, 6: 38400, 7: 672000 },
-  8:  { 5: 960, 6: 9600, 7: 192000, 8: 1920000 },
-  9:  { 5: 480, 6: 4800, 7: 48000, 8: 480000, 9: 4800000 },
-  10: { 5: 192, 6: 1920, 7: 19200, 8: 192000, 9: 1920000, 10: 9600000 },
+  1:  { 1: 192 },
+  2:  { 2: 394 },
+  3:  { 3: 831 },
+  4:  { 3: 100, 4: 1335 },
+  5:  { 4: 200, 5: 2760 },
+  6:  { 5: 400, 6: 6000 },
+  7:  { 5: 100, 6: 800, 7: 9700 },
+  8:  { 6: 300, 7: 2000, 8: 10000 },
+  9:  { 7: 500, 8: 3000, 9: 49000 },
+  10: { 7: 200, 8: 800, 9: 4000, 10: 90000 },
 };
 
 function fmtMult(x100: number): string {
   const v = x100 / 100;
   return v >= 1000 ? `${(v / 1000).toFixed(0)}Kx` : `${v % 1 === 0 ? v : v.toFixed(2)}x`;
 }
+
+// RTP per pick count, computed exactly via hypergeometric probability against
+// the PAYOUT_TABLE above (20 drawn from 40, picks numbers as listed). Varies
+// significantly by how many numbers you pick — more picks = lower RTP.
+const RTP_BY_PICKS: Record<number, number> = {
+  1: 96.0, 2: 96.0, 3: 95.9, 4: 95.7, 5: 94.5,
+  6: 92.9, 7: 89.4, 8: 85.4, 9: 84.7, 10: 78.9,
+};
 
 function decodeMask(mask: bigint): Set<number> {
   const set = new Set<number>();
@@ -79,6 +88,7 @@ export default function KenoPage() {
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [animSpeed, setAnimSpeed] = useState<1 | 2 | 3>(1); // 1=slow 120ms/tile, 2=normal 20ms/tile, 3=instant (no sweep)
   const animSpeedRef = useRef<1 | 2 | 3>(1);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -276,7 +286,7 @@ export default function KenoPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
 
         {/* ── Reveal speed toggle ── */}
@@ -319,12 +329,14 @@ export default function KenoPage() {
             )}
           />
         </div>
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
+
         <FastTxToggle disabled={loading} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.kenoGame} betId={pendingBetId} onSettled={refetchAll} />
         </div>
       )}
@@ -503,9 +515,9 @@ export default function KenoPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -555,7 +567,7 @@ export default function KenoPage() {
             </div>
 
             {/* QUICK PICKS */}
-            <div className="p-4 border-x border-amber-400/10 overflow-auto flex flex-col">
+            <div className="p-4 overflow-auto flex flex-col">
               <div className="flex items-center justify-between mb-2">
                 <p
                   className="text-sm font-black uppercase tracking-widest"
@@ -627,6 +639,63 @@ export default function KenoPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Sparkles className="w-4 h-4" />}
+        title="Keno"
+        description={`Keno is a numbers-draw game: choose anywhere from 1 to ${MAX_PICKS} numbers out of a field of ${TOTAL_NUMBERS}, place your bet, and watch as ${DRAWN_COUNT} numbers are drawn at random from that same field. Your payout is determined entirely by how many of your chosen numbers ("hits") land among the ${DRAWN_COUNT} drawn — every pick count has its own independent payout table, so the number of numbers you choose changes both your odds of hitting and the multiplier you're chasing. Unlike most other games on this site, Keno's return-to-player is not flat across all bet configurations: it shifts meaningfully depending on how many numbers you pick, so the choice of pick count is itself a real strategic decision, not just a matter of taste.`}
+        steps={[
+          `Select between 1 and ${MAX_PICKS} numbers on the board from 1–${TOTAL_NUMBERS}, or let Quick Pick choose a random set for you.`,
+          'Set your bet amount using the chip buttons or the input field.',
+          `Press Play to lock in your numbers — ${DRAWN_COUNT} numbers are then drawn at random from the full 1–${TOTAL_NUMBERS} field.`,
+          'The board reveals which of your picks were hit (drawn), which were missed, and which drawn numbers you did not pick.',
+          'Your payout is read off the table for your exact pick count based on how many hits you landed; hit counts below the lowest paying tier for your pick count win nothing.',
+        ]}
+        sections={[
+          {
+            title: 'Payout & RTP Table (by Picks → Hits → Multiplier)',
+            content: (
+              <div className="space-y-2.5">
+                {Object.entries(PAYOUT_TABLE).map(([picksStr, hitsTable]) => {
+                  const picksNum = Number(picksStr);
+                  return (
+                    <div key={picksStr} className="flex items-start gap-2 text-xs border-b border-zinc-800/70 pb-1.5 last:border-0 last:pb-0">
+                      <span className="text-zinc-400 font-bold w-20 shrink-0">
+                        {picksStr} pick{picksStr !== '1' ? 's' : ''}
+                        <span className="block text-[10px] text-zinc-500 font-normal">RTP {RTP_BY_PICKS[picksNum]}%</span>
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(hitsTable).map(([hits, mult]) => (
+                          <span key={hits} className="px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
+                            {hits} hit{hits !== '1' ? 's' : ''} <span className="text-amber-300 font-bold">{fmtMult(mult)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ),
+          },
+          {
+            title: 'How RTP Changes With Pick Count',
+            content: (
+              <div className="text-xs text-zinc-300 space-y-2">
+                <p>
+                  Picking fewer numbers gives you a tighter, more favorable payout curve: 1–3 picks land at roughly <span className="text-amber-300 font-bold">95.9%–96.0%</span> RTP, about as close to break-even as this game gets. As you pick more numbers the table leans harder on rare, high-multiplier jackpots to balance the math, and the realistic return for an average player drops accordingly — 5 picks sit around <span className="text-amber-300 font-bold">94.5%</span>, 7 picks around <span className="text-amber-300 font-bold">89.4%</span>, and by 10 picks RTP falls all the way to roughly <span className="text-amber-300 font-bold">78.9%</span>.
+                </p>
+                <p>
+                  In short: fewer picks means steadier, closer-to-fair value, while more picks means you are mathematically giving up a larger share of your stake in exchange for a shot at much bigger multipliers (up to 900x at 10 picks / 10 hits). Neither approach is wrong, but the table above makes the trade-off explicit rather than hidden.
+                </p>
+              </div>
+            ),
+          },
+        ]}
+        tip="Lower pick counts (1–4) keep RTP close to 96% with frequent small wins; higher pick counts (8–10) trade most of that value away for a chance at the rare top-tier multipliers — pick based on how much variance you actually want."
+        rtp="78.9%–96.0% (varies by picks)"
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, Rocket } from 'lucide-react';
 import { formatUnits } from 'viem';
 import { useAccount } from 'wagmi';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 const STEP_HEIGHT = 52;
@@ -113,6 +114,7 @@ export default function RocketPage() {
 
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(0); // 0 = not started, 1–7 = on that step
   const [gameOver, setGameOver] = useState<'win' | 'loss' | null>(null);
   // Let-it-ride stake: once a run is going, each jump wagers exactly what the
@@ -321,6 +323,7 @@ export default function RocketPage() {
             }}
           />
         </div>
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
         <FastTxToggle disabled={isProcessing} />
       </div>
 
@@ -534,19 +537,21 @@ export default function RocketPage() {
               <div className="flex-1 flex flex-col items-center justify-center gap-1 sm:gap-2">
                 {!gameOver ? (
                   <>
-                    <div className="text-2xl sm:text-4xl font-black tabular-nums"
-                      style={{
-                        background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-                        WebkitBackgroundClip: 'text',
-                        backgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        color: 'transparent',
-                        filter: 'drop-shadow(0 0 8px rgba(222,188,110,0.3))',
-                      }}>
-                      {nextStep.display}
-                    </div>
-                    <div className="text-[10px] sm:text-xs text-zinc-500 font-medium tracking-wider uppercase">
-                      {nextStep.label} of {STEPS.length}
+                    <div className="flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-1">
+                      <div className="text-2xl sm:text-4xl font-black tabular-nums"
+                        style={{
+                          background: 'linear-gradient(20deg, #debc6e, #8c6825)',
+                          WebkitBackgroundClip: 'text',
+                          backgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          color: 'transparent',
+                          filter: 'drop-shadow(0 0 8px rgba(222,188,110,0.3))',
+                        }}>
+                        {nextStep.display}
+                      </div>
+                      <div className="text-[10px] sm:text-xs text-zinc-500 font-medium tracking-wider uppercase">
+                        {nextStep.label} of {STEPS.length}
+                      </div>
                     </div>
                     {isActive && (
                       <button
@@ -590,7 +595,7 @@ export default function RocketPage() {
               <button
                 onClick={handlePlay}
                 disabled={isProcessing || !!gameOver || isComplete}
-                className="relative w-full h-full min-h-[64px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-1 sm:gap-2 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -621,6 +626,51 @@ export default function RocketPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Rocket className="w-4 h-4" />}
+        title="Rocket"
+        description="Rocket is a let-it-ride climb through seven preset multiplier steps, each one riskier and more rewarding than the last. You place one bet to launch the first boost, and every step after that is a brand-new wager equal to whatever you just won — so your winnings either get banked by cashing out, or get put fully back at risk to chase the next, higher multiplier. Under the hood, every boost is resolved by the exact same on-chain mechanism as the Crash game: each step's target multiplier is checked against an independently generated outcome, so the odds of clearing any given step are identical to setting that same multiplier as your target in Crash."
+        steps={[
+          'Place a bet to launch the first boost, targeting Step 1 at 1.10x.',
+          'If the boost clears, choose to withdraw the full payout shown, or let it ride into the next, higher-multiplier step.',
+          'Each time you let it ride, the entire payout from the previous step becomes the new stake — nothing is held back.',
+          'Crashing on any step forfeits the full stake riding on that boost, ending the run with a loss.',
+          'Successfully clearing Step 7 is the maximum win and automatically ends the run, paying out the full accumulated multiplier.',
+        ]}
+        sections={[
+          {
+            title: 'Steps & Multipliers',
+            content: (
+              <div className="space-y-2 text-[11px] text-zinc-300">
+                <p>
+                  These seven preset targets are the same kind of target multiplier used in Crash — Step 1 is the easiest to clear and Step 7 is the hardest, with the odds of clearing each step shrinking as the multiplier grows. Climbing further means stacking those odds together: clearing Step 1 and then Step 2 requires both boosts to land, which is why the later steps feel dramatically riskier than the first.
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  {STEPS.map((step, i) => (
+                    <div key={step.label} className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                      <span className="text-zinc-400">{i + 1}. {step.label}</span>
+                      <span className="text-amber-300 font-bold tabular-nums">{step.display}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: 'Payout calculation',
+            content: (
+              <p className="text-[11px] text-zinc-300 leading-relaxed">
+                Each step's payout is your current stake multiplied by that step's listed multiplier — for example, clearing Step 1 turns a 10.00 {bet.meta.symbol} stake into 11.00 {bet.meta.symbol}. If you let it ride, that full 11.00 {bet.meta.symbol} becomes the stake for Step 2 at 1.35x, and so on up the ladder. Because each step compounds on the last, the final payout after clearing all seven steps reflects every multiplier multiplied together, not just the final step's number alone — which is what makes reaching Step 7 worth dramatically more than the sum of its individual steps.
+              </p>
+            ),
+          },
+        ]}
+        tip="After a successful boost, the entire payout automatically becomes the stake for the next step — there's no way to bank part of it and ride with the rest, so cashing out is an all-or-nothing decision at every step."
+        rtp="~95.00%"
+      />
 
     </div>
   );

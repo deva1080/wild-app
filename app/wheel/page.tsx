@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { CircleDollarSign } from 'lucide-react';
+import { CircleDollarSign, Disc3 } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -17,6 +17,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 const CHIP_VALUES = ['1', '5', '10', '50', '100'];
 
@@ -142,6 +143,35 @@ function formatMultiplier(bp: bigint): string {
   if (value === 0) return '0X';
   if (Number.isInteger(value)) return value + 'X';
   return value.toFixed(1) + 'X';
+}
+
+/**
+ * Computes the live, on-chain-config-dependent net RTP for the wheel.
+ *
+ * `weightRanges` is CUMULATIVE (segment i's own weight = weightRanges[i] -
+ * weightRanges[i-1], except segment 0 whose weight = weightRanges[0]; the
+ * total weight is the last entry). The internal RTP is the weight-weighted
+ * average of the segment multipliers (in basis points). WheelGame.sol's
+ * config validation guarantees that internal figure is ≤ 100%, but the exact
+ * value depends on whatever weights/multipliers are configured on-chain.
+ * On top of that, BaseGame.sol's universal explosionRate mechanic (default
+ * 4, not overridden by WheelGame) silently folds in a flat 5% instant-loss
+ * chance on every bet, so the real net RTP is the internal figure × 0.95.
+ */
+function computeWheelRtp(weightRanges: bigint[], multipliers: bigint[]): number {
+  if (weightRanges.length === 0 || multipliers.length === 0) return 0;
+  let weightedSum = 0n;
+  let prev = 0n;
+  const totalWeight = weightRanges[weightRanges.length - 1];
+  if (totalWeight <= 0n) return 0;
+  for (let i = 0; i < weightRanges.length; i++) {
+    const segmentWeight = weightRanges[i] - prev;
+    prev = weightRanges[i];
+    weightedSum += segmentWeight * (multipliers[i] ?? 0n);
+  }
+  const internalRtp = Number(weightedSum) / (Number(totalWeight) * 10000);
+  const netRtp = internalRtp * 0.95;
+  return netRtp * 100;
 }
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
@@ -277,6 +307,7 @@ export default function WheelPage() {
 
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [showFinalResult, setShowFinalResult] = useState(false);
@@ -305,6 +336,16 @@ export default function WheelPage() {
   const multipliers = useMemo(() => config?.multipliers ?? [], [config]);
   const segmentCount = multipliers.length || 8;
   const segmentAngle = 360 / segmentCount;
+
+  // Live RTP, computed from the currently-loaded on-chain config. Falls back
+  // to null while config is loading/unavailable so the modal simply omits
+  // the rtp prop rather than showing a stale or invented number.
+  const rtpLabel = useMemo(() => {
+    if (!config || config.weightRanges.length === 0) return null;
+    const pct = computeWheelRtp(config.weightRanges, config.multipliers);
+    if (!Number.isFinite(pct) || pct <= 0) return null;
+    return `~${pct.toFixed(1)}%`;
+  }, [config]);
 
   const startInfiniteSpin = useCallback(() => {
     setIsSpinning(true);
@@ -483,9 +524,10 @@ export default function WheelPage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={isPlaying} />
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={addresses.games.wheel}
             renderOutcome={(o) => {
@@ -500,12 +542,13 @@ export default function WheelPage() {
             }}
           />
         </div>
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
         <FastTxToggle disabled={isPlaying} />
       </div>
 
       {/* ── Pending bet banner ── */}
       {pendingBetId !== null && (
-        <div className="px-5 pt-3">
+        <div className="px-3 sm:px-5 pt-3">
           <PendingBetBanner gameAddress={addresses.games.wheel} betId={pendingBetId as bigint} onSettled={refetchAll} />
         </div>
       )}
@@ -597,9 +640,9 @@ export default function WheelPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -649,8 +692,8 @@ export default function WheelPage() {
               </div>
             </div>
 
-            {/* PROBABILITY TABLE (middle column) */}
-            <div className="p-4 border-x border-amber-400/10 space-y-3">
+            {/* PROBABILITY TABLE (middle column) — hidden on mobile to give the wheel more room */}
+            <div className="hidden sm:block p-4 space-y-3">
               <p className="text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Chances
@@ -671,7 +714,7 @@ export default function WheelPage() {
               <button
                 onClick={handlePlay}
                 disabled={isPlaying || showFinalResult}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-3 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -682,7 +725,7 @@ export default function WheelPage() {
                     : '0 0 24px rgba(222,188,110,0.25), 0 0 60px rgba(222,188,110,0.08), inset 0 0 20px rgba(222,188,110,0.04)',
                 }}
               >
-                <svg className="w-12 h-12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-8 h-8 sm:w-12 sm:h-12" viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
                   <defs>
                     <linearGradient id="wheel-spin-grad" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0%" stopColor="#debc6e"/>
@@ -693,7 +736,7 @@ export default function WheelPage() {
                   <path stroke="url(#wheel-spin-grad)" strokeWidth="1.8" d="M21 3v5h-5"/>
                 </svg>
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -711,6 +754,51 @@ export default function WheelPage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Disc3 className="w-4 h-4" />}
+        title="Wheel"
+        description={`Wheel is a classic single-spin wheel-of-fortune game built around ${segmentCount} fixed segments arranged around the rim, each carrying its own payout multiplier. You choose a bet amount, set the wheel spinning, and a single weighted random outcome decides which segment the pointer settles on when the wheel comes to rest. Because every segment occupies an equal slice of the wheel in this configuration, every spin carries the same odds of landing on any given segment, and your payout is simply your bet multiplied by whatever value that segment displays. There is no skill element once the spin begins — the entire game resolves on that one outcome.`}
+        steps={[
+          'Choose your bet amount using the chip buttons or the input field, then confirm you have enough balance for the wager.',
+          'Press Spin to send your bet on-chain; the wheel begins spinning immediately while the transaction is placed and confirmed.',
+          'The contract resolves a single random outcome that selects exactly one of the segments shown on the wheel.',
+          'The wheel decelerates and the pointer settles on the winning segment, which is highlighted once the spin finishes.',
+          'Your payout is credited automatically as your bet amount multiplied by that segment\'s multiplier; a 0X segment returns nothing.',
+        ]}
+        sections={[
+          {
+            title: 'Segments & Odds',
+            content: (
+              <div>
+                <p className="text-xs text-zinc-300 mb-2 leading-relaxed">
+                  The wheel currently has {segmentCount} segments, and because they are evenly sized, each one has an identical {(100 / segmentCount).toFixed(1)}% chance of being the winning segment on any given spin. The full multiplier set actually configured on-chain right now is listed below — these are read live from the contract, not fixed in the app, so they reflect exactly what you can win today.
+                </p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {multipliers.map((mult, i) => (
+                    <div key={i} className="flex items-center justify-between text-[11px] rounded border border-zinc-800 px-2 py-1">
+                      <span className="text-zinc-300 font-mono font-bold">{formatMultiplier(mult)}</span>
+                      <span className="text-zinc-500 font-mono">{(100 / segmentCount).toFixed(1)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ),
+          },
+          {
+            title: 'Payout Mechanics',
+            content: (
+              <p className="text-xs text-zinc-300 leading-relaxed">
+                Payout is calculated as bet × segment multiplier, where the multiplier is read directly from the segment the pointer lands on, expressed as a value like 0X, 1.5X, 2X, and so on. Higher multiplier segments naturally pay more per spin but are no more or less likely to occur than any other segment, since all segments here share equal odds — the variance in this game comes entirely from the spread between the highest and lowest multipliers on the wheel, not from uneven odds.
+              </p>
+            ),
+          },
+        ]}
+        tip={`Every segment has equal odds of ${(100 / segmentCount).toFixed(1)}%. Because the multiplier spread can be wide, expect streaks of small or zero wins between the occasional larger multiplier — the wheel is fixed-odds, so pacing your bet size relative to your bankroll matters more than chasing a particular segment.`}
+        rtp={rtpLabel ?? undefined}
+      />
 
     </div>
   );

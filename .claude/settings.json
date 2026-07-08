@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/leand/OneDMove/Documents/DevAProjects/gambling/web-app/app/slot/**)",
+      "Bash(git -C \"c:\\\\Users\\\\leand\\\\OneDrive\\\\Documents\\\\DevAProjects\\\\gambling\\\\web-app\" diff app/keno/page.tsx)",
+      "Bash(node -e \"const i = require\\('c:/Users/leand/OneDrive/Documents/DevAProjects/gambling/web-app/node_modules/lucide-react'\\); const names = Object.keys\\(i\\).filter\\(n => /dice|cherry|coin|gem|sparkle|star|slot|rocket|gift/i.test\\(n\\)\\); console.log\\(names.join\\('\\\\n'\\)\\)\")",
+      "Bash(node \"C:\\\\Users\\\\leand\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-leand-OneDrive-Documents-DevAProjects-gambling-web-app\\\\a139d543-8359-4886-8e71-921fb59435a1\\\\scratchpad\\\\rtp.mjs\")",
+      "Bash(node \"C:\\\\Users\\\\leand\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-leand-OneDrive-Documents-DevAProjects-gambling-web-app\\\\a139d543-8359-4886-8e71-921fb59435a1\\\\scratchpad\\\\rtp2.mjs\")",
+      "Bash(node -e \"const m = require\\('C:/Users/leand/OneDrive/Documents/DevAProjects/gambling/web-app/node_modules/lucide-react/dist/cjs/lucide-react.js'\\); console.log\\(Object.keys\\(m\\).filter\\(k => /dice/i.test\\(k\\)\\)\\)\")"
+    ]
+  }
+}

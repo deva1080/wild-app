@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { CircleDollarSign, Info } from 'lucide-react';
+import { CircleDollarSign, Dices } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -16,6 +16,7 @@ import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
+import { GameInfoButton, GameInfoModal } from '@/components/GameInfoModal';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -225,7 +226,7 @@ export default function DicePage() {
   const [betData, setBetData] = useState<number>(7); // default sum=7 / double=1
   const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [showResultText, setShowResultText] = useState(false);
 
   const pendingBetId =
@@ -342,9 +343,10 @@ export default function DicePage() {
       </svg>
 
       {/* ── Top bar ── */}
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
         <PaymentSelector disabled={loading} />
-        <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
+        <div className="flex-1 sm:hidden" aria-hidden />
+        <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={addresses.games.diceGame}
             renderOutcome={(o) => {
@@ -368,6 +370,7 @@ export default function DicePage() {
             }}
           />
         </div>
+        <GameInfoButton onClick={() => setShowInfoModal(true)} />
         <FastTxToggle disabled={loading} />
       </div>
 
@@ -515,9 +518,9 @@ export default function DicePage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-4">
+      <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
             <div className="p-4 space-y-3">
@@ -571,7 +574,7 @@ export default function DicePage() {
             </div>
 
             {/* BET TYPE */}
-            <div className="p-4 space-y-2 border-x border-amber-400/10 relative">
+            <div className="p-4 space-y-2 relative">
               <div className="flex items-center justify-between">
                 <p
                   className="text-sm font-black uppercase tracking-widest"
@@ -585,24 +588,7 @@ export default function DicePage() {
                 >
                   Bet Type
                 </p>
-                <button
-                  onClick={() => setShowInfo(!showInfo)}
-                  className="text-zinc-500 hover:text-amber-400 transition-colors"
-                >
-                  <Info className="w-4 h-4" />
-                </button>
               </div>
-
-              {showInfo && (
-                <div className="absolute top-12 left-4 right-4 z-50 bg-zinc-900 border border-amber-400/30 rounded-lg p-3 text-[10px] text-zinc-300 shadow-xl space-y-1.5">
-                  <p><strong className="text-amber-400">HIGH:</strong> Sum 8-12 (7 loses)</p>
-                  <p><strong className="text-amber-400">LOW:</strong> Sum 2-6 (7 loses)</p>
-                  <p><strong className="text-amber-400">EVEN/ODD:</strong> Sum is even or odd</p>
-                  <p><strong className="text-amber-400">SUM:</strong> Exact sum of both dice</p>
-                  <p><strong className="text-amber-400">DBL:</strong> Any double (both dice match)</p>
-                  <p><strong className="text-amber-400">XDBL:</strong> Exact double (e.g. two 6s)</p>
-                </div>
-              )}
 
               {/* Type buttons */}
               <div className="grid grid-cols-4 gap-1">
@@ -711,7 +697,7 @@ export default function DicePage() {
               <button
                 onClick={handlePlay}
                 disabled={loading}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -727,7 +713,7 @@ export default function DicePage() {
                   <DieFace value={die2 > 0 && isResult ? die2 : 4} size={28} />
                 </div>
                 <span
-                  className="font-black text-3xl tracking-[0.15em]"
+                  className="font-black text-xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -746,6 +732,74 @@ export default function DicePage() {
           </div>
         </div>
       </div>
+
+      <GameInfoModal
+        open={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        icon={<Dices className="w-4 h-4" />}
+        title="Dice"
+        description="Dice is played with two standard six-sided dice (d6 + d6), rolled together on every wager. Before rolling you choose a bet type — the exact sum, a high/low range, even/odd, any double, or one specific double — and the contract draws both dice independently and pays out automatically based on which category the result falls into. Because there are 36 equally likely combinations of two dice, every bet type's odds are fixed and fully calculable, and the payout for each one is set so the house keeps a small, consistent edge no matter which bet you choose. Sums cluster around 7, which is the most common total, so bets covering the middle of the range hit more often but pay less, while rarer outcomes like exact doubles pay far more."
+        steps={[
+          'Set your bet amount using the chip buttons or the input field.',
+          'Pick a bet type: EXACT SUM, HIGH, LOW, EVEN, ODD, ANY DOUBLE, or EXACT DOUBLE.',
+          'If you picked EXACT SUM or EXACT DOUBLE, also choose the specific target sum (2-12) or double value (1-6).',
+          'Press Roll to submit your bet — both dice are rolled together on-chain.',
+          'The combined result decides the outcome: matching your bet type pays out at that bet\'s fixed multiplier, and any other result loses the stake.',
+        ]}
+        sections={[
+          {
+            title: 'Bet types & payouts',
+            content: (
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">HIGH — sum 8 to 12 (a sum of 7 always loses this bet)</span>
+                  <span className="text-amber-300 font-bold">2.30×</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">LOW — sum 2 to 6 (a sum of 7 always loses this bet)</span>
+                  <span className="text-amber-300 font-bold">2.30×</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">EVEN — combined sum is even</span>
+                  <span className="text-amber-300 font-bold">1.92×</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">ODD — combined sum is odd</span>
+                  <span className="text-amber-300 font-bold">1.92×</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">ANY DOUBLE — both dice show the same value</span>
+                  <span className="text-amber-300 font-bold">5.76×</span>
+                </div>
+                <div className="flex items-center justify-between rounded border border-zinc-800 px-2 py-1">
+                  <span className="text-zinc-400">EXACT DOUBLE — a specific double you choose (e.g. double-6)</span>
+                  <span className="text-amber-300 font-bold">34.56×</span>
+                </div>
+                <p className="text-[10px] text-zinc-500 pt-1">
+                  HIGH and LOW exclude sum 7 entirely — rolling a 7 loses both bets even though it sits between the two ranges, which is what keeps their odds (and payout) matched to EVEN/ODD rather than paying out more often than they should.
+                </p>
+              </div>
+            ),
+          },
+          {
+            title: 'Exact sum payouts (target 2-12)',
+            content: (
+              <div className="grid grid-cols-4 gap-1 text-[11px]">
+                {[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((s) => (
+                  <div key={s} className="flex flex-col items-center rounded border border-zinc-800 px-1.5 py-1">
+                    <span className="text-zinc-500">Sum {s}</span>
+                    <span className="text-amber-300 font-bold tabular-nums">
+                      {((EXACT_SUM_PAYOUTS[s] ?? 0) / 100).toFixed(2)}x
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ),
+          },
+        ]}
+        tip="Sums near 7 (6, 7, 8) are rolled far more often than extreme sums like 2 or 12, which is why the exact-sum payout table pays much more for the rare edge totals than for the common middle ones — every bet type is priced so the long-run edge stays the same regardless of which you pick."
+        rtp="~96.00%"
+      />
     </div>
   );
 }
