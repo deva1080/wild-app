@@ -10,6 +10,7 @@ import { ReferralProvider } from '@/lib/web3/context/ReferralContext'
 import { TxActivityProvider } from '@/lib/web3/context/TxActivityContext'
 import { BetTokenProvider } from '@/lib/web3/context/BetTokenContext'
 import { SoundProvider } from '@/lib/sound/SoundContext'
+import { ToastProvider } from '@/lib/ui/ToastContext'
 import { PrivyProvider } from '@privy-io/react-auth'
 import { base } from 'wagmi/chains'
 
@@ -47,17 +48,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <WagmiProvider config={config}>
           <GlobalEventListeners />
-          <SoundProvider>
-            <TxActivityProvider>
-              <TxModeProvider>
-                <BetTokenProvider>
-                  <ReferralProvider>
-                    {children}
-                  </ReferralProvider>
-                </BetTokenProvider>
-              </TxModeProvider>
-            </TxActivityProvider>
-          </SoundProvider>
+          <ToastProvider>
+            <SoundProvider>
+              <TxActivityProvider>
+                <TxModeProvider>
+                  <BetTokenProvider>
+                    <ReferralProvider>
+                      {children}
+                    </ReferralProvider>
+                  </BetTokenProvider>
+                </TxModeProvider>
+              </TxActivityProvider>
+            </SoundProvider>
+          </ToastProvider>
         </WagmiProvider>
       </QueryClientProvider>
     </PrivyProvider>

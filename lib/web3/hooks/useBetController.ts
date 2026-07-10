@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
-import { Address, Hex, formatUnits, parseUnits } from 'viem';
-import { useAccount } from 'wagmi';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Address, Hex, erc20Abi, formatUnits, maxUint256, parseUnits } from 'viem';
+import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
 import { usePlayerState } from './usePlayerState';
 import { useGamePlay } from './useGamePlay';
 import { useDelegatedPlay } from './useDelegatedPlay';
@@ -11,7 +11,17 @@ import { useTxMode } from '../context/TxModeContext';
 import { useBetTokenContext } from '../context/BetTokenContext';
 import { useReferralContext } from '../context/ReferralContext';
 import { useTxActivity } from '../context/TxActivityContext';
-import { PAYMENT_METHODS } from '../constants/tokens';
+import { PAYMENT_METHODS, PAYMENT_METHOD_LIST } from '../constants/tokens';
+import { addresses } from '../constants/addresses';
+
+/**
+ * Minimum allowance (in the token's own units) a payment token must have
+ * against GameRouter before we bother the user with an approve prompt again.
+ * Kept well above any single bet so it rarely re-triggers once approved.
+ */
+function allowanceThreshold(decimals: number): bigint {
+  return decimals <= 6 ? parseUnits('1000', decimals) : parseUnits('1', decimals);
+}
 
 /** Subset of the useGameResultFlow API the controller drives. */
 interface ResultFlow {
@@ -39,6 +49,8 @@ function safeParseUnits(value: string, decimals: number): bigint {
  */
 export function useBetController(gameAddress: Address) {
   const { address } = useAccount();
+  const publicClient = usePublicClient();
+  const { writeContractAsync } = useWriteContract();
   const { balanceForMethod } = usePlayerState();
   const { playStandard, playWithCredits, requestSettle, requestDelegatedPlay } = useGamePlay();
   const { authorizedPlays, setupDelegatedPlay } = useDelegatedPlay();
@@ -47,6 +59,44 @@ export function useBetController(gameAddress: Address) {
   const { method, setMethod } = useBetTokenContext();
   const { referrerAddress } = useReferralContext();
   const { beginTx, endTx } = useTxActivity();
+
+  /**
+   * On entering a game view, make sure every non-credits payment token has
+   * enough GameRouter allowance. Delegated ("fast tx") mode only re-approves
+   * when `authorizedPlays` is 0, which is a per-wallet flag, not per-token —
+   * so switching to a newly-added token (e.g. USDC) after already authorizing
+   * plays with WILD silently had zero allowance and every bet reverted.
+   * This proactively requests approve() for whichever token needs it.
+   */
+  const allowanceCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!address || !publicClient || allowanceCheckedRef.current) return;
+    allowanceCheckedRef.current = true;
+
+    (async () => {
+      for (const pm of PAYMENT_METHOD_LIST) {
+        if (pm.useCredits) continue;
+        try {
+          const allowance = await publicClient.readContract({
+            address: pm.address,
+            abi: erc20Abi,
+            functionName: 'allowance',
+            args: [address, addresses.gameRouter],
+          });
+          if (allowance < allowanceThreshold(pm.decimals)) {
+            await writeContractAsync({
+              address: pm.address,
+              abi: erc20Abi,
+              functionName: 'approve',
+              args: [addresses.gameRouter, maxUint256],
+            });
+          }
+        } catch {
+          // User rejected or RPC hiccup — don't block the game view, next play() will retry.
+        }
+      }
+    })();
+  }, [address, publicClient, writeContractAsync]);
 
   const meta = PAYMENT_METHODS[method];
   const balanceWei = balanceForMethod(method);
@@ -59,10 +109,14 @@ export function useBetController(gameAddress: Address) {
     });
   }, [balanceWei, decimals]);
 
+  /** Hard cap on the MAX chip, independent of the user's actual balance. */
+  const MAX_CHIP_CAP = 100;
+
   /** Balance as a plain numeric string for the MAX chip / clamping. */
   const maxAmount = useMemo(() => {
     if (balanceWei === undefined || balanceWei === 0n) return '0';
-    return Number(formatUnits(balanceWei, decimals)).toFixed(2);
+    const balance = Number(formatUnits(balanceWei, decimals));
+    return Math.min(balance, MAX_CHIP_CAP).toFixed(2);
   }, [balanceWei, decimals]);
 
   /**
@@ -85,7 +139,7 @@ export function useBetController(gameAddress: Address) {
       let weiAmount = desired;
       if (balanceWei !== undefined && desired > balanceWei) {
         weiAmount = balanceWei;
-        if (onClamp) onClamp(maxAmount);
+        if (onClamp) onClamp(Number(formatUnits(weiAmount, decimals)).toFixed(2));
       }
 
       if (weiAmount <= 0n) {
@@ -148,7 +202,6 @@ export function useBetController(gameAddress: Address) {
       address,
       decimals,
       balanceWei,
-      maxAmount,
       meta,
       txMode,
       authorizedPlays,

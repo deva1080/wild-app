@@ -6,6 +6,8 @@ import { usePublicClient, useAccount } from 'wagmi';
 import { abis } from '@/lib/web3/constants/abis';
 import { useGamePlay } from '@/lib/web3/hooks/useGamePlay';
 import { useBetSettledListener, BetSettledEvent } from '@/lib/web3/hooks/useBetSettledListener';
+import { useTxMode } from '@/lib/web3/context/TxModeContext';
+import { useToast } from '@/lib/ui/ToastContext';
 
 const RESULT_RECEIPT_CONFIRMATIONS = 1;
 
@@ -227,6 +229,8 @@ export function useGameResultFlow() {
   const publicClient = usePublicClient();
   const { address } = useAccount();
   const { settlePendingBet } = useGamePlay();
+  const { renewFastTx } = useTxMode();
+  const { showToast } = useToast();
 
   const resolvedRef = useRef(false);
   const activeBetIdRef = useRef<bigint | null>(null);
@@ -261,14 +265,28 @@ export function useGameResultFlow() {
     setState({ phase: 'stuck', betId, gameAddress });
   }, []);
 
+  /**
+   * A bare "Unauthorized" means the backend rejected the delegated-play
+   * session (expired/revoked fast-tx authorization) — instead of a raw
+   * alert, prompt the user to re-sign and nudge them via toast.
+   */
+  const reportError = useCallback((message: string) => {
+    if (message === 'Unauthorized') {
+      showToast('Renová tu fast tx');
+      renewFastTx().catch(() => {});
+      return;
+    }
+    if (typeof window !== 'undefined') alert(message);
+  }, [renewFastTx, showToast]);
+
   const error = useCallback((message: string) => {
     if (resolvedRef.current) return;
     resolvedRef.current = true;
     activeBetIdRef.current = null;
     isDelegatedModeRef.current = false;
     setState(null);
-    if (typeof window !== 'undefined') alert(message);
-  }, []);
+    reportError(message);
+  }, [reportError]);
 
   const close = useCallback(() => {
     resolvedRef.current = false;
@@ -319,10 +337,10 @@ export function useGameResultFlow() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       close();
-      if (typeof window !== 'undefined') alert(msg);
+      reportError(msg);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, settlePendingBet, close]);
+  }, [state, settlePendingBet, close, reportError]);
 
   /**
    * Wait for a settle tx to be mined and decode the BetSettled event from it.
