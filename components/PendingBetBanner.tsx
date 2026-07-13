@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { Address } from 'viem';
-import { useWriteContract, usePublicClient, useAccount } from 'wagmi';
+import { usePublicClient, useAccount } from 'wagmi';
+import { useWriteContractBase } from '@/lib/web3/hooks/useWriteContractBase';
 import { useGamePlay, extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { abis } from '@/lib/web3/constants/abis';
 
@@ -14,7 +15,7 @@ interface Props {
 
 export function PendingBetBanner({ gameAddress, betId, onSettled }: Props) {
   const { settlePendingBet } = useGamePlay();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
   const publicClient = usePublicClient();
   const { address } = useAccount();
   const [loading, setLoading] = useState(false);

@@ -1,6 +1,7 @@
 'use client';
 
-import { useAccount, useReadContract, useWriteContract } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
+import { useWriteContractBase } from './useWriteContractBase';
 import { Address } from 'viem';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
@@ -15,7 +16,7 @@ import { abis } from '../constants/abis';
  */
 export function useReferral() {
   const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
 
   const { data: referrerOf, refetch: refetchReferrer } = useReadContract({
     address: addresses.referalRegistry as Address,

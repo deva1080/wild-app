@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Address, Hex, erc20Abi, formatUnits, maxUint256, parseUnits } from 'viem';
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
+import { useWriteContractBase } from './useWriteContractBase';
 import { usePlayerState } from './usePlayerState';
 import { useGamePlay } from './useGamePlay';
 import { useDelegatedPlay } from './useDelegatedPlay';
@@ -50,7 +51,7 @@ function safeParseUnits(value: string, decimals: number): bigint {
 export function useBetController(gameAddress: Address) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
   const { balanceForMethod } = usePlayerState();
   const { playStandard, playWithCredits, requestSettle, requestDelegatedPlay } = useGamePlay();
   const { authorizedPlays, setupDelegatedPlay } = useDelegatedPlay();

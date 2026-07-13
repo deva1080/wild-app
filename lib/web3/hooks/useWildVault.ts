@@ -1,6 +1,7 @@
 'use client';
 
-import { useReadContract, useWriteContract, usePublicClient } from 'wagmi';
+import { useReadContract, usePublicClient } from 'wagmi';
+import { useWriteContractBase } from './useWriteContractBase';
 import { Address, erc20Abi, maxUint256 } from 'viem';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
@@ -13,7 +14,7 @@ import { abis } from '../constants/abis';
  */
 export function useWildVault() {
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
 
   const { data: usdcBuyRate } = useReadContract({
     address: addresses.wildVault as Address,

@@ -1,6 +1,7 @@
 'use client';
 
-import { useAccount, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
+import { useAccount, useReadContract, usePublicClient } from 'wagmi';
+import { useWriteContractBase } from './useWriteContractBase';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
 import { Address, erc20Abi, maxUint256 } from 'viem';
@@ -8,7 +9,7 @@ import { Address, erc20Abi, maxUint256 } from 'viem';
 export function useDelegatedPlay() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
 
   const { data: authorizedPlays, refetch: refetchAuthorized } = useReadContract({
     address: addresses.gameRouter,

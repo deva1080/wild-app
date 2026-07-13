@@ -1,6 +1,7 @@
 'use client';
 
-import { useWriteContract, useAccount, usePublicClient } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
+import { useWriteContractBase } from './useWriteContractBase';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
 import { Address, decodeEventLog, erc20Abi, Hex, maxUint256, ContractFunctionRevertedError, BaseError } from 'viem';
@@ -71,7 +72,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
 export function useGamePlay() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
 
   /**
    * Extract betId from play transaction receipt logs.

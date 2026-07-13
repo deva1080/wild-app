@@ -1,6 +1,7 @@
 'use client';
 
-import { useAccount, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
+import { useAccount, useReadContract, usePublicClient } from 'wagmi';
+import { useWriteContractBase } from './useWriteContractBase';
 import { Address } from 'viem';
 import { abis } from '../constants/abis';
 
@@ -14,7 +15,7 @@ import { abis } from '../constants/abis';
 export function usePlayerSeed(gameAddress: Address) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
 
   const { data: currentSeed, refetch: refetchSeed } = useReadContract({
     address: gameAddress,

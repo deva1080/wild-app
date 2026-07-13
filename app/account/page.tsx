@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
-import { useAccount, useWriteContract, useReadContract } from 'wagmi';
+import { useAccount, useReadContract } from 'wagmi';
+import { useWriteContractBase } from '@/lib/web3/hooks/useWriteContractBase';
 import { parseEther, formatEther, formatUnits, parseUnits, isAddress } from 'viem';
 import { Address } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
@@ -114,7 +115,7 @@ export default function AccountPage() {
   const { address } = useAccount();
   const { wildBalance, usdcBalance, creditsBalance, ethBalance, refetchAll } = usePlayerState();
   const { purchaseCredits } = useGamePlay();
-  const { writeContractAsync } = useWriteContract();
+  const { writeContractAsync } = useWriteContractBase();
   const referral = useReferral();
   const referrerStats = useReferrerStats();
   const wildVault = useWildVault();
