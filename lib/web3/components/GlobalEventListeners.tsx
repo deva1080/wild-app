@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useAccount, usePublicClient, useSwitchChain } from 'wagmi';
-import { base } from 'wagmi/chains';
+import { usePublicClient } from 'wagmi';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,18 +18,6 @@ export function GlobalEventListeners() {
   usePrivyWalletSync();
   const queryClient = useQueryClient();
   const publicClient = usePublicClient();
-
-  // Wallets connect on whatever chain they had active (often ETH mainnet).
-  // Prompt a switch to Base as soon as we detect a mismatch, so approves and
-  // plays never land on the wrong network. If the user rejects here,
-  // useWriteContractBase still forces the switch before each transaction.
-  const { isConnected, chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
-  useEffect(() => {
-    if (isConnected && chainId !== undefined && chainId !== base.id) {
-      switchChain({ chainId: base.id });
-    }
-  }, [isConnected, chainId, switchChain]);
 
   // Debounce timer to batch multiple near-simultaneous events into one refetch
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAccount, useConnect, useDisconnect, useSignMessage } from 'wagmi'
+import { base } from 'wagmi/chains'
 import { useCreateWallet, useLoginWithOAuth, usePrivy } from '@privy-io/react-auth'
 import { useTxMode } from '@/lib/web3/context/TxModeContext'
 
@@ -293,7 +294,7 @@ export function WalletButton() {
                   type="button"
                   onClick={() => {
                     setSelected(connector.name)
-                    connect({ connector })
+                    connect({ connector, chainId: base.id })
                   }}
                   disabled={isPending}
                   className="w-full text-left px-4 py-3 rounded-xl border border-amber-400/25 bg-[#111722] hover:bg-[#161f2d] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
