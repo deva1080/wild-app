@@ -22,6 +22,7 @@ export function WalletButton() {
   const [renewing, setRenewing] = useState(false)
   const [renewError, setRenewError] = useState<string | null>(null)
   const [isMobile, setIsMobile] = useState(false)
+  const [injectedWalletName, setInjectedWalletName] = useState<string | null>(null)
   const [mobileConnectError, setMobileConnectError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const isNewConnect = useRef(false)
@@ -103,11 +104,32 @@ export function WalletButton() {
     const mobileQuery = window.matchMedia(
       '(max-width: 767px), (hover: none) and (pointer: coarse)',
     )
-    const updateMobile = () => setIsMobile(mobileQuery.matches)
-    updateMobile()
-    mobileQuery.addEventListener('change', updateMobile)
-    return () => mobileQuery.removeEventListener('change', updateMobile)
+    const updateEnvironment = () => {
+      setIsMobile(mobileQuery.matches)
+      const provider = (window as Window & {
+        ethereum?: {
+          isMetaMask?: boolean
+          isCoinbaseWallet?: boolean
+        }
+      }).ethereum
+      setInjectedWalletName(
+        provider?.isMetaMask
+          ? 'MetaMask'
+          : provider?.isCoinbaseWallet
+            ? 'Base Wallet'
+            : provider
+              ? 'Wallet'
+              : null,
+      )
+    }
+    updateEnvironment()
+    mobileQuery.addEventListener('change', updateEnvironment)
+    return () => mobileQuery.removeEventListener('change', updateEnvironment)
   }, [])
+
+  const mobileConnectLabel = injectedWalletName
+    ? `Connect ${injectedWalletName}`
+    : 'Automatic login'
 
   const connectAutomatically = () => {
     setMobileConnectError(null)
@@ -127,7 +149,7 @@ export function WalletButton() {
       return
     }
 
-    setSelected('Automatic login')
+    setSelected(mobileConnectLabel)
     connect({ connector, chainId: base.id })
   }
 
@@ -340,36 +362,42 @@ export function WalletButton() {
                     className="w-full text-left px-4 py-3 rounded-xl border border-amber-400/35 bg-amber-400/10 hover:bg-amber-400/15 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                   >
                     <div className="font-medium text-sm text-amber-100">
-                      {isPending && selected === 'Automatic login'
+                      {isPending && selected === mobileConnectLabel
                         ? 'Connecting...'
-                        : 'Automatic login'}
+                        : mobileConnectLabel}
                     </div>
                     <div className="text-xs text-zinc-400">
-                      Connect with an installed wallet
+                      {injectedWalletName
+                        ? 'Connect directly from this wallet browser'
+                        : 'Connect with an installed wallet'}
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => openWalletApp('metamask')}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-amber-400/25 bg-[#111722] hover:bg-[#161f2d] transition-colors"
-                  >
-                    <div className="font-medium text-sm text-zinc-100">MetaMask</div>
-                    <div className="text-xs text-zinc-400">
-                      Open Wildcard Games in MetaMask
-                    </div>
-                  </button>
+                  {!injectedWalletName && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openWalletApp('metamask')}
+                        className="w-full text-left px-4 py-3 rounded-xl border border-amber-400/25 bg-[#111722] hover:bg-[#161f2d] transition-colors"
+                      >
+                        <div className="font-medium text-sm text-zinc-100">MetaMask</div>
+                        <div className="text-xs text-zinc-400">
+                          Open Wildcard Games in MetaMask
+                        </div>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => openWalletApp('base')}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-amber-400/25 bg-[#111722] hover:bg-[#161f2d] transition-colors"
-                  >
-                    <div className="font-medium text-sm text-zinc-100">Base Wallet</div>
-                    <div className="text-xs text-zinc-400">
-                      Open Wildcard Games in Base Wallet
-                    </div>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => openWalletApp('base')}
+                        className="w-full text-left px-4 py-3 rounded-xl border border-amber-400/25 bg-[#111722] hover:bg-[#161f2d] transition-colors"
+                      >
+                        <div className="font-medium text-sm text-zinc-100">Base Wallet</div>
+                        <div className="text-xs text-zinc-400">
+                          Open Wildcard Games in Base Wallet
+                        </div>
+                      </button>
+                    </>
+                  )}
 
                   {mobileConnectError && (
                     <p className="px-1 pt-1 text-xs text-red-400">{mobileConnectError}</p>
