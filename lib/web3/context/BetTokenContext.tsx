@@ -11,7 +11,7 @@ interface BetTokenContextValue {
 }
 
 const BetTokenContext = createContext<BetTokenContextValue>({
-  method: 'WILD',
+  method: 'USDC',
   setMethod: () => {},
 });
 
@@ -20,7 +20,7 @@ function isValidMethod(value: string | null): value is PaymentMethodKey {
 }
 
 export function BetTokenProvider({ children }: { children: React.ReactNode }) {
-  const [method, setMethodState] = useState<PaymentMethodKey>('WILD');
+  const [method, setMethodState] = useState<PaymentMethodKey>('USDC');
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
