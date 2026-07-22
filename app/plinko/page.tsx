@@ -429,7 +429,7 @@ export default function PlinkoPage() {
   const isPlaying = loading || isDropping || ['placing', 'waiting-settle', 'settling'].includes(resultPhase);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       {/* Global gradient defs */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -498,7 +498,7 @@ export default function PlinkoPage() {
       )}
 
       {/* ── Board area ── */}
-      <div className="flex-1 flex items-center justify-center relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
 
         {/* Radial glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -645,7 +645,7 @@ export default function PlinkoPage() {
         {showFinalResult && (
           <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
             <div
-              className="flex flex-col items-center gap-1 rounded-2xl bg-black/55 backdrop-blur-sm px-8 py-6 pointer-events-auto"
+              className="flex max-w-[calc(100%_-_24px)] flex-col items-center gap-1 rounded-xl border border-amber-300/35 bg-black/80 px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md pointer-events-auto"
               style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
             >
               <div
@@ -697,12 +697,12 @@ export default function PlinkoPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
           <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3 border-r border-amber-400/10 sm:border-r-0">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p className="text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Bet Amount
@@ -747,7 +747,7 @@ export default function PlinkoPage() {
             </div>
 
             {/* BALLS */}
-            <div className="p-4 space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-black uppercase tracking-widest"
                   style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
@@ -775,11 +775,11 @@ export default function PlinkoPage() {
             </div>
 
             {/* DROP BUTTON */}
-            <div className="col-span-2 sm:col-span-1 p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
+            <div className="col-span-2 sm:col-span-1 p-2 sm:p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={isPlaying || showFinalResult || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -796,7 +796,7 @@ export default function PlinkoPage() {
                   <path d="M8 13l4 4 4-4" />
                 </svg>
                 <span
-                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent',

@@ -429,7 +429,7 @@ export default function CrashPage() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       {/* Global gradient defs for lucide icon strokes */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -502,7 +502,7 @@ export default function CrashPage() {
 
       {/* ── Center: chart ── */}
       <div
-        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]"
+        className="flex-1 relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]"
       >
         {/* Starfield */}
         <Starfield intensity={
@@ -546,7 +546,7 @@ export default function CrashPage() {
 
           {/* WIN / LOSS */}
           {showFinalResult && (
-            <div className="flex flex-col items-center gap-0.5" style={{ animation: 'resultFadeIn 0.35s ease-out both' }}>
+            <div className="flex flex-col items-center gap-0.5 rounded-xl border border-amber-300/35 bg-black/80 px-5 py-3 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md" style={{ animation: 'resultFadeIn 0.35s ease-out both' }}>
               <div
                 className={`text-3xl font-black tracking-tight ${isWin ? 'text-green-400' : 'text-red-400'}`}
                 style={{ textShadow: isWin ? '0 0 24px rgba(74,222,128,0.7)' : '0 0 24px rgba(248,113,113,0.7)' }}
@@ -569,8 +569,8 @@ export default function CrashPage() {
 
         {/* Loading status label — bottom center */}
         {loading && !animating && !showFinalResult && spinLabel && (
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
-            <p className="text-amber-300/50 text-xs font-medium animate-pulse tracking-widest uppercase">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+            <p className="rounded-full border border-amber-400/25 bg-black/75 px-4 py-2 text-amber-200/80 text-xs font-medium animate-pulse tracking-widest uppercase shadow-xl backdrop-blur-md">
               {spinLabel}
             </p>
           </div>
@@ -587,12 +587,12 @@ export default function CrashPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -603,7 +603,7 @@ export default function CrashPage() {
                   color: 'transparent',
                 }}
               >Bet Amount</p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2 focus-within:border-amber-400/60 transition-colors">
                 <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-rocket-grad)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
@@ -640,7 +640,7 @@ export default function CrashPage() {
             </div>
 
             {/* MULTIPLIER */}
-            <div className="p-4 space-y-3 mx-0">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3 mx-0">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -651,7 +651,7 @@ export default function CrashPage() {
                   color: 'transparent',
                 }}
               >Multiplier</p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2">
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2">
                 <Rocket className="w-5 h-5 shrink-0" stroke="url(#gold-rocket-grad)" strokeWidth={1.8} />
                 <span className={`flex-1 text-xl font-black tabular-nums ${isPlaying ? 'text-zinc-500' : 'text-zinc-100'}`}>
                   {fmtMult(multiplier)}
@@ -684,11 +684,11 @@ export default function CrashPage() {
             </div>
 
             {/* LAUNCH */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={isPlaying}
-                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -701,7 +701,7 @@ export default function CrashPage() {
               >
                 <Rocket className="w-8 h-8 sm:w-12 sm:h-12" stroke="url(#gold-rocket-grad)" strokeWidth={1.8} />
                 <span
-                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',

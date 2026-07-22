@@ -242,7 +242,7 @@ export default function KenoPage() {
 
   // ── Main layout ────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
         <defs>
@@ -308,7 +308,7 @@ export default function KenoPage() {
       )}
 
       {/* ── Center: number grid ── */}
-      <div className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a] flex flex-col">
+      <div className="flex-1 relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a] flex flex-col">
 
         {/* Ambient glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -323,7 +323,7 @@ export default function KenoPage() {
         </div>
 
         {/* Header row */}
-        <div className="relative z-10 flex items-center justify-between px-5 pt-3 pb-2 flex-shrink-0">
+        <div className="relative z-10 flex items-center justify-between px-2 sm:px-5 pt-2 sm:pt-3 pb-1 sm:pb-2 flex-shrink-0">
           <div className="flex items-center gap-3">
             <span
               className="text-sm font-black uppercase tracking-widest"
@@ -367,8 +367,8 @@ export default function KenoPage() {
         </div>
 
         {/* Number grid & Payouts */}
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-4 gap-6">
-          <div className="grid grid-cols-10 gap-1.5 w-full max-w-lg">
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-1 sm:px-4 pb-2 sm:pb-4 gap-2 sm:gap-6">
+          <div className="grid grid-cols-10 gap-1 sm:gap-1.5 w-full max-w-lg">
             {Array.from({ length: TOTAL_NUMBERS }, (_, i) => {
               const n = i + 1;
               const isPicked = picks.has(n);
@@ -421,17 +421,17 @@ export default function KenoPage() {
           {/* Result — centered, below the multiplier/payout info */}
           {revealDone && (
             <div
-              className="flex flex-col items-center gap-1"
+              className="absolute left-1/2 top-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl border border-amber-300/35 bg-black/85 px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.8)] backdrop-blur-md"
               style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
             >
               <span
-                className="text-base font-black"
+                className="text-2xl font-black"
                 style={{ color: resultColor, textShadow: `0 0 20px ${resultGlow}` }}
               >
                 {resultLabel} · {hitCount} hit{hitCount !== 1 ? 's' : ''} / {DRAWN_COUNT} drawn
               </span>
               {isWin && resultPayout !== undefined && (
-                <span className="text-sm font-bold text-green-300">
+                <span className="text-3xl sm:text-4xl font-black text-green-300 tabular-nums">
                   +{fmtAmt(resultPayout)} {bet.meta.symbol}
                 </span>
               )}
@@ -481,12 +481,12 @@ export default function KenoPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -499,7 +499,7 @@ export default function KenoPage() {
               >
                 Bet Amount
               </p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2 focus-within:border-amber-400/60 transition-colors">
                 <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-icon-grad-keno)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
@@ -533,7 +533,7 @@ export default function KenoPage() {
             </div>
 
             {/* QUICK PICKS */}
-            <div className="p-4 overflow-auto flex flex-col">
+            <div className="p-2.5 sm:p-4 overflow-auto flex flex-col">
               <div className="flex items-center justify-between mb-2">
                 <p
                   className="text-sm font-black uppercase tracking-widest"
@@ -556,7 +556,7 @@ export default function KenoPage() {
                       key={count}
                       disabled={loading}
                       onClick={() => quickPick(count)}
-                      className="py-1.5 rounded-lg text-xs font-bold border border-zinc-700/60 bg-zinc-800/30 text-zinc-300 hover:border-zinc-500 hover:text-white transition-all disabled:opacity-40"
+                      className="py-1 sm:py-1.5 rounded-lg text-xs font-bold border border-zinc-700/60 bg-zinc-800/30 text-zinc-300 hover:border-zinc-500 hover:text-white transition-all disabled:opacity-40"
                     >
                       Pick {count}
                     </button>
@@ -566,11 +566,11 @@ export default function KenoPage() {
             </div>
 
             {/* PLAY */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="col-span-2 sm:col-span-1 p-2 sm:p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={loading || numPicks === 0 || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -582,7 +582,7 @@ export default function KenoPage() {
                 }}
               >
                 <span
-                  className="font-black text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -595,7 +595,7 @@ export default function KenoPage() {
                   {bet.actionLabel('PLAY')}
                 </span>
                 {numPicks > 0 && (
-                  <span className="text-[10px] text-zinc-500 font-medium">
+                  <span className="hidden sm:block text-[10px] text-zinc-500 font-medium">
                     {numPicks} picks · {DRAWN_COUNT} drawn
                   </span>
                 )}

@@ -486,7 +486,7 @@ export default function WheelPage() {
   const isPlaying = loading || isSpinning;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       {/* Global gradient defs */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -528,7 +528,7 @@ export default function WheelPage() {
       )}
 
       {/* ── Wheel area ── */}
-      <div className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
+      <div className="flex-1 relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
 
         {/* Spinning starfield background */}
         <SpinningStarfield spinning={isSpinning} />
@@ -563,14 +563,14 @@ export default function WheelPage() {
         {/* Status / result overlay */}
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center pointer-events-none">
           {isSpinning && spinLabel && !showFinalResult && (
-            <p className="text-amber-300/50 text-sm font-medium animate-pulse tracking-widest uppercase pointer-events-none">
+            <p className="rounded-full border border-amber-400/25 bg-black/75 px-4 py-2 text-amber-200/80 text-xs font-medium animate-pulse tracking-widest uppercase shadow-xl backdrop-blur-md">
               {spinLabel}
             </p>
           )}
 
           {showFinalResult && (
             <div
-              className="flex flex-col items-center gap-1 pointer-events-auto"
+              className="flex max-w-[calc(100%_-_24px)] flex-col items-center gap-1 rounded-xl border border-amber-300/35 bg-black/80 px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md pointer-events-auto"
               style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
             >
               <div
@@ -614,17 +614,17 @@ export default function WheelPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               <p className="text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Bet Amount
               </p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2 focus-within:border-amber-400/60 transition-colors">
                 <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#wheel-gold-grad)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
@@ -657,7 +657,7 @@ export default function WheelPage() {
                     <button key={v}
                       disabled={isPlaying}
                       onClick={() => { playChip(); if (result.state !== null) result.close(); setAmount(val); }}
-                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                      className={`py-0.5 sm:py-1 rounded text-[11px] sm:text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}>
                       {v}
                     </button>
@@ -684,11 +684,11 @@ export default function WheelPage() {
             </div>
 
             {/* SPIN BUTTON */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={isPlaying || showFinalResult || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -710,7 +710,7 @@ export default function WheelPage() {
                   <path stroke="url(#wheel-spin-grad)" strokeWidth="1.8" d="M21 3v5h-5"/>
                 </svg>
                 <span
-                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',

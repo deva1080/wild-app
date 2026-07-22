@@ -144,7 +144,7 @@ export default function RPSPage() {
 
   // ── Main layout ───────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       {/* Global gradient defs for lucide icon strokes */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -195,7 +195,7 @@ export default function RPSPage() {
 
       {/* ── Center: game display ── */}
       <div
-        className="flex-1 relative overflow-hidden min-h-0 mx-4 my-3 rounded-2xl flex items-center justify-center border border-amber-400/25 bg-[#0a0a0a]"
+        className="flex-1 relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl flex items-center justify-center border border-amber-400/25 bg-[#0a0a0a]"
       >
         {/* Ambient glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -211,18 +211,18 @@ export default function RPSPage() {
         </div>
 
         {/* ── Cards layout ── */}
-        <div className="relative z-10 flex flex-col md:flex-row items-center gap-4 md:gap-16 px-6">
+        <div className="relative z-10 flex w-full flex-row items-center justify-center gap-2 sm:gap-4 md:gap-16 px-1 sm:px-6">
 
           {/* Player card */}
-          <div className="flex flex-col items-center gap-3 order-2 md:order-1">
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-1 sm:gap-3 order-1">
             <img 
               src={`/rps/${choice === 0 ? 'rock' : choice === 1 ? 'paper' : 'scissors'}.webp`} 
               alt={CHOICE_NAMES[choice]} 
-              className="h-48 md:h-80 w-auto object-contain" 
+              className="h-24 sm:h-48 md:h-80 max-w-full w-auto object-contain" 
               style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.6))' }}
             />
             <span
-              className="text-lg font-black tracking-widest uppercase"
+              className="text-xs sm:text-lg font-black tracking-widest uppercase"
               style={{
                 background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                 WebkitBackgroundClip: 'text',
@@ -233,15 +233,15 @@ export default function RPSPage() {
           </div>
 
           {/* VS */}
-          <div className="flex flex-col items-center order-1 md:order-2">
+          <div className="flex flex-col items-center order-2">
             <span className="text-3xl font-black text-zinc-600">VS</span>
             {loading && spinLabel && (
-              <p className="text-amber-300/40 text-[10px] font-medium animate-pulse tracking-widest uppercase mt-2">
+              <p className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-400/25 bg-black/75 px-4 py-2 text-amber-200/80 text-[10px] font-medium animate-pulse tracking-widest uppercase shadow-xl backdrop-blur-md">
                 {spinLabel}
               </p>
             )}
             {showResultText && (
-              <div className="flex flex-col items-center gap-1 mt-2" style={{ animation: 'resultFadeIn 0.35s ease-out both' }}>
+              <div className="absolute left-1/2 top-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl border border-amber-300/35 bg-black/80 px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md" style={{ animation: 'resultFadeIn 0.35s ease-out both' }}>
                 <div
                   className="text-4xl font-black tracking-tight"
                   style={{ color: resultColor, textShadow: `0 0 32px ${resultGlow}` }}
@@ -266,8 +266,8 @@ export default function RPSPage() {
           </div>
 
           {/* Dealer card */}
-          <div className="flex flex-col items-center gap-3 order-3">
-            <div className="relative h-48 md:h-80" style={{ perspective: '800px' }}>
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-1 sm:gap-3 order-3">
+            <div className="relative h-24 sm:h-48 md:h-80 max-w-full" style={{ perspective: '800px' }}>
               <div
                 className="h-full relative"
                 style={{
@@ -287,7 +287,7 @@ export default function RPSPage() {
                   <img 
                     src="/rps/wildcard.webp" 
                     alt="Dealer" 
-                    className="h-48 md:h-80 w-auto object-contain" 
+                    className="h-24 sm:h-48 md:h-80 max-w-full w-auto object-contain" 
                     style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.6))' }}
                   />
                   {loading && (
@@ -316,7 +316,7 @@ export default function RPSPage() {
                     <img 
                       src={`/rps/${houseChoice === 0 ? 'rock' : houseChoice === 1 ? 'paper' : 'scissors'}.webp`} 
                       alt={CHOICE_NAMES[houseChoice]} 
-                      className="h-48 md:h-80 w-auto object-contain" 
+                      className="h-24 sm:h-48 md:h-80 max-w-full w-auto object-contain" 
                       style={{ filter: `drop-shadow(0 4px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 20px ${resultGlow})` }}
                     />
                   )}
@@ -324,7 +324,7 @@ export default function RPSPage() {
               </div>
             </div>
             <span
-              className="text-lg font-black tracking-widest uppercase"
+              className="text-xs sm:text-lg font-black tracking-widest uppercase"
               style={{
                 background: 'linear-gradient(20deg, #b89d5a, #6b4f1c)',
                 WebkitBackgroundClip: 'text',
@@ -353,12 +353,12 @@ export default function RPSPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
           <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3 border-r border-amber-400/10 sm:border-r-0">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -369,7 +369,7 @@ export default function RPSPage() {
                   color: 'transparent',
                 }}
               >Bet Amount</p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2 focus-within:border-amber-400/60 transition-colors">
                 <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-icon-grad-rps)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
@@ -405,7 +405,7 @@ export default function RPSPage() {
             </div>
 
             {/* CHOICE */}
-            <div className="p-4 space-y-2">
+            <div className="p-2.5 sm:p-4 space-y-1.5 sm:space-y-2">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -441,11 +441,11 @@ export default function RPSPage() {
             </div>
 
             {/* PLAY */}
-            <div className="col-span-2 sm:col-span-1 p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
+            <div className="col-span-2 sm:col-span-1 p-2 sm:p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={loading || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -460,7 +460,7 @@ export default function RPSPage() {
                    <RpsIcon choice={choice} size={48} active={true} />
                 </div>
                 <span
-                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',

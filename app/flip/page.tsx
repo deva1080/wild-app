@@ -201,7 +201,7 @@ export default function FlipPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       {/* Global gradient defs for lucide icon strokes */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -248,7 +248,7 @@ export default function FlipPage() {
       )}
 
       {/* ── Coin area (flex-1) ── */}
-      <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden gap-5 mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a]">
         {/* Radial glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="w-72 h-72 rounded-full bg-amber-500/6 blur-3xl" />
@@ -297,7 +297,7 @@ export default function FlipPage() {
 
         {/* Status text below coin while spinning */}
         {isSpinning && spinLabel && (
-          <p className="relative z-10 text-amber-300/50 text-xs font-medium animate-pulse tracking-widest uppercase">
+          <p className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-400/25 bg-black/75 px-4 py-2 text-amber-200/80 text-xs font-medium animate-pulse tracking-widest uppercase shadow-xl backdrop-blur-md">
             {spinLabel}
           </p>
         )}
@@ -305,7 +305,7 @@ export default function FlipPage() {
         {/* Result text below coin */}
         {isResult && (
           <div
-            className="relative z-10 flex flex-col items-center gap-1"
+            className="absolute left-1/2 top-1/2 z-20 flex max-w-[calc(100%_-_24px)] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl border border-amber-300/35 bg-black/80 px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md"
             style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
           >
             <div
@@ -330,7 +330,7 @@ export default function FlipPage() {
         {/* Error state */}
         {isError && (
           <div
-            className="relative z-10 flex flex-col items-center gap-2"
+            className="absolute left-1/2 top-1/2 z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 rounded-xl border border-red-400/30 bg-black/85 px-5 py-4 shadow-xl backdrop-blur-md"
             style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
           >
             <p className="text-red-400 font-bold">Something went wrong</p>
@@ -345,12 +345,12 @@ export default function FlipPage() {
       </div>
 
       {/* ── Bottom controls panel ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* Column 1: BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               <p
                 className="text-sm font-black uppercase tracking-widest"
                 style={{
@@ -362,7 +362,7 @@ export default function FlipPage() {
                 }}
               >Bet Amount</p>
 
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2 focus-within:border-amber-400/60 transition-colors">
                 <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-icon-grad)" strokeWidth={2} />
                 <input
                   type="number"
@@ -415,7 +415,7 @@ export default function FlipPage() {
                         if (result.state !== null) result.close();
                         setAmount(val);
                       }}
-                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                    className={`py-0.5 sm:py-1 rounded text-[11px] sm:text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>
                   );
@@ -424,7 +424,7 @@ export default function FlipPage() {
             </div>
 
             {/* Column 2: CHOOSE SIDE */}
-            <div className="p-4 flex flex-col gap-3 h-full">
+            <div className="p-2.5 sm:p-4 flex flex-col gap-2 sm:gap-3 h-full">
               <p
                 className="text-sm font-black uppercase tracking-widest text-center"
                 style={{
@@ -443,7 +443,7 @@ export default function FlipPage() {
                     if (result.state !== null) result.close();
                     setSide(0);
                   }}
-                  className={`flex-1 h-full py-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex-1 h-full py-2 sm:py-4 rounded-xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 0
                       ? 'border-[#debc6e] bg-[linear-gradient(145deg,#a87d32_0%,#debc6e_60%,#8c6825_100%)] shadow-[0_0_20px_rgba(222,188,110,0.25)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
@@ -471,7 +471,7 @@ export default function FlipPage() {
                     if (result.state !== null) result.close();
                     setSide(1);
                   }}
-                  className={`flex-1 h-full py-4 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex-1 h-full py-2 sm:py-4 rounded-xl border-2 flex flex-col items-center justify-center gap-1 sm:gap-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
                     side === 1
                       ? 'border-[#debc6e] bg-[#111111] shadow-[0_0_20px_rgba(222,188,110,0.15)]'
                       : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'
@@ -493,11 +493,11 @@ export default function FlipPage() {
             </div>
 
             {/* Column 3: FLIP button */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={loading || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -516,7 +516,7 @@ export default function FlipPage() {
                   <path d="M8 16H3v5"/>
                 </svg>
                 <span
-                  className="font-black text-2xl sm:text-4xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',

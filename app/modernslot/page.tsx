@@ -293,10 +293,12 @@ export default function ModernSlotPage() {
   useEffect(() => {
     const update = () => {
       if (window.innerWidth < 640) {
-        // Available px for the reel cabinet on mobile:
-        // vw - mx-4(32) - px-3(12) - cabinet p-3(24) - (reels-1)*gap-2(8)
-        const available = window.innerWidth - 32 - 12 - 24 - (reels - 1) * 8;
-        setCellH(Math.min(CELL_H, Math.max(40, Math.floor(available / reels))));
+        // Fit every reel inside both the horizontal and vertical mobile viewport.
+        const horizontalSpace = window.innerWidth - 16 - 16 - 16 - (reels - 1) * 4;
+        const verticalSpace = Math.min(300, Math.max(190, window.innerHeight * 0.42)) - 16;
+        const byWidth = Math.floor(horizontalSpace / reels);
+        const byHeight = Math.floor(verticalSpace / rows);
+        setCellH(Math.min(CELL_H, Math.max(36, Math.min(byWidth, byHeight))));
       } else {
         setCellH(CELL_H);
       }
@@ -304,7 +306,7 @@ export default function ModernSlotPage() {
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
-  }, [reels]);
+  }, [reels, rows]);
 
   const pendingBetId =
     typeof contractPendingBet === 'bigint' && contractPendingBet !== BigInt(0)
@@ -433,7 +435,7 @@ export default function ModernSlotPage() {
 
   // ── Main layout ────────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
         <defs>
@@ -471,7 +473,7 @@ export default function ModernSlotPage() {
       )}
 
       {/* ── Center: reels ── */}
-      <div className="flex-1 relative overflow-hidden min-h-0 px-3 sm:px-0 mx-4 my-3 rounded-2xl flex flex-col items-center justify-center border border-amber-400/25 bg-[#0a0a0a] gap-4 py-4">
+      <div className="flex-1 relative overflow-hidden min-h-0 p-2 sm:px-0 sm:py-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl flex items-center justify-center border border-amber-400/25 bg-[#0a0a0a]">
 
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div
@@ -487,7 +489,7 @@ export default function ModernSlotPage() {
 
         {/* Reel cabinet */}
         <div
-          className="relative z-10 flex gap-2 p-3 rounded-2xl border border-amber-400/25 bg-[#0d0d0d]"
+          className="relative z-10 flex max-w-full gap-1 sm:gap-2 p-2 sm:p-3 rounded-2xl border border-amber-400/25 bg-[#0d0d0d]"
           style={{
             boxShadow: isWin
               ? '0 0 44px rgba(222,188,110,0.2), inset 0 0 24px rgba(222,188,110,0.05)'
@@ -518,52 +520,35 @@ export default function ModernSlotPage() {
         </div>
 
         {/* Status / result */}
-        <div className="relative z-10 flex flex-col items-center gap-2 min-h-[52px]">
+        <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center">
           {loading && spinLabel && (
-            <p className="text-amber-300/40 text-xs font-medium animate-pulse tracking-widest uppercase">
+            <p className="rounded-full border border-amber-400/25 bg-black/75 backdrop-blur-md px-4 py-2 text-amber-200/80 text-xs font-medium animate-pulse tracking-widest uppercase shadow-xl">
               {spinLabel}
             </p>
           )}
 
           {active && (
             <div
-              className="flex flex-col items-center gap-1.5"
+              className="pointer-events-auto flex max-w-[calc(100%_-_24px)] flex-col items-center gap-1.5 rounded-xl border border-amber-300/35 bg-black/80 px-4 py-3 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md"
               style={{ animation: 'resultFadeIn 0.35s ease-out both' }}
             >
               {isWin ? (
-                <>
-                  <div className="flex items-center gap-3 flex-wrap justify-center">
+                <div className="flex flex-col items-center gap-1">
+                  <span
+                    className="text-xl font-black tracking-widest"
+                    style={{ color: resultColor, textShadow: `0 0 24px ${resultGlow}` }}
+                  >
+                    WIN
+                  </span>
+                  {win !== undefined && (
                     <span
-                      className="text-3xl font-black"
-                      style={{ color: resultColor, textShadow: `0 0 24px ${resultGlow}` }}
+                      className="text-4xl sm:text-5xl font-black text-green-300 tabular-nums"
+                      style={{ textShadow: `0 0 28px ${resultGlow}` }}
                     >
-                      WIN
+                      +{fmtAmt(win)} <span className="text-xl sm:text-2xl text-green-400/75">{bet.meta.symbol}</span>
                     </span>
-                    {globalMult > 1n && (
-                      <span
-                        className="text-lg font-black px-2 py-0.5 rounded-lg"
-                        style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', color: '#1a1205' }}
-                      >
-                        ×{globalMult.toString()} WILD
-                      </span>
-                    )}
-                    {win !== undefined && (
-                      <span className="text-base font-bold text-green-300">
-                        +{fmtAmt(win)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex gap-2 flex-wrap justify-center">
-                    {winEntries.map((w, i) => (
-                      <span
-                        key={i}
-                        className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-400/30 bg-amber-400/10 text-amber-300"
-                      >
-                        {SYMBOLS[w.symbol].emoji} {w.length}× · {w.ways} ways
-                      </span>
-                    ))}
-                  </div>
-                </>
+                  )}
+                </div>
               ) : (
                 <span className="text-xl font-black" style={{ color: resultColor }}>
                   NO WIN
@@ -578,7 +563,7 @@ export default function ModernSlotPage() {
           )}
 
           {!isResult && !loading && (
-            <p className="text-zinc-700 text-xs tracking-widest uppercase">
+            <p className="absolute bottom-2 rounded-full bg-black/55 px-3 py-1 text-zinc-500 text-[10px] sm:text-xs tracking-widest uppercase backdrop-blur-sm">
               {reels}×{rows} ways-to-win · WILD ×2/3/5 multipliers
             </p>
           )}
@@ -599,14 +584,14 @@ export default function ModernSlotPage() {
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
           <div className="grid grid-cols-1 sm:grid-cols-2 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-4 space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-2 sm:space-y-3">
               <p
-                className="text-sm font-black uppercase tracking-widest"
+                className="text-xs sm:text-sm font-black uppercase tracking-widest"
                 style={{
                   background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                   WebkitBackgroundClip: 'text',
@@ -617,13 +602,13 @@ export default function ModernSlotPage() {
               >
                 Bet Amount
               </p>
-              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-3 py-2 focus-within:border-amber-400/60 transition-colors">
-                <CircleDollarSign className="w-5 h-5 shrink-0" stroke="url(#gold-icon-grad-mslot)" strokeWidth={2} />
+              <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-[#1a1a1a] px-2.5 sm:px-3 py-1.5 sm:py-2 focus-within:border-amber-400/60 transition-colors">
+                <CircleDollarSign className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" stroke="url(#gold-icon-grad-mslot)" strokeWidth={2} />
                 <input
                   type="number" min="0.01" step="0.01"
                   value={amount} disabled={loading}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="flex-1 min-w-0 bg-transparent text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  className="flex-1 min-w-0 bg-transparent text-lg sm:text-xl font-black text-zinc-100 focus:outline-none disabled:opacity-40 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <div className="flex flex-col gap-0.5">
                   <button disabled={loading} onClick={() => { playChip(); setAmount((v) => (parseFloat(v) + 1).toFixed(2)); }}
@@ -642,7 +627,7 @@ export default function ModernSlotPage() {
                   const active = amount === val;
                   return (
                     <button key={v} disabled={loading} onClick={() => { playChip(); setAmount(val); }}
-                      className={`py-1 rounded text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
+                      className={`py-0.5 sm:py-1 rounded text-[11px] sm:text-xs font-bold border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${!active ? 'bg-zinc-800/60 border-zinc-700 text-zinc-400 hover:border-zinc-600' : 'border-transparent text-[#1a1205]'}`}
                       style={active ? { background: 'linear-gradient(20deg, #debc6e, #8c6825)' } : undefined}
                     >{v}</button>
                   );
@@ -651,11 +636,11 @@ export default function ModernSlotPage() {
             </div>
 
             {/* SPIN */}
-            <div className="p-4 flex items-center justify-center">
+            <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
                 disabled={loading || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -667,7 +652,7 @@ export default function ModernSlotPage() {
                 }}
               >
                 <span
-                  className="font-black text-3xl tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
@@ -679,7 +664,7 @@ export default function ModernSlotPage() {
                 >
                   {bet.actionLabel('SPIN')}
                 </span>
-                <span className="text-[10px] text-zinc-500 font-medium">ways to win</span>
+                <span className="hidden sm:block text-[10px] text-zinc-500 font-medium">ways to win</span>
               </button>
             </div>
 

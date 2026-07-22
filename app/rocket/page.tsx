@@ -251,7 +251,7 @@ export default function RocketPage() {
   const towerHeight = STEPS.length * STEP_PITCH + GROUND_OFFSET + 8;
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
 
       {/* Global gradient defs */}
       <svg width="0" height="0" className="absolute overflow-hidden" aria-hidden="true">
@@ -314,7 +314,7 @@ export default function RocketPage() {
       )}
 
       {/* ── Center: tower ── */}
-      <div ref={towerCardRef} className="flex-1 relative overflow-hidden min-h-0 mx-2 sm:mx-4 my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a] flex items-center justify-center">
+      <div ref={towerCardRef} className="flex-1 relative overflow-hidden min-h-0 p-2 sm:p-4 mx-2 sm:mx-4 my-2 sm:my-3 rounded-2xl border border-amber-400/25 bg-[#0a0a0a] flex items-center justify-center">
 
         {/* Subtle radial glow */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -431,32 +431,34 @@ export default function RocketPage() {
               animation: 'resultFadeIn 0.35s ease-out both',
             }}
           >
-            <div className={`text-6xl font-black tracking-tight ${gameOver === 'win' ? 'text-green-400' : 'text-red-400'}`}
-              style={{ textShadow: gameOver === 'win' ? '0 0 40px rgba(74,222,128,0.6)' : '0 0 40px rgba(248,113,113,0.6)' }}>
-              {gameOver === 'win' ? 'MAX WIN!' : 'CRASHED!'}
+            <div className="flex max-w-[calc(100%_-_24px)] flex-col items-center rounded-xl border border-amber-300/35 bg-black/80 px-5 py-4 text-center shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md">
+              <div className={`text-3xl sm:text-6xl font-black tracking-tight ${gameOver === 'win' ? 'text-green-400' : 'text-red-400'}`}
+                style={{ textShadow: gameOver === 'win' ? '0 0 40px rgba(74,222,128,0.6)' : '0 0 40px rgba(248,113,113,0.6)' }}>
+                {gameOver === 'win' ? 'MAX WIN!' : 'CRASHED!'}
+              </div>
+              {gameOver === 'win' && totalWon > 0n && (
+                <p className="mt-2 text-3xl sm:text-4xl font-black text-green-300 tabular-nums">
+                  +{fmtAmt(totalWon)} <span className="text-green-400/60 text-lg sm:text-xl">{bet.meta.symbol}</span>
+                </p>
+              )}
+              <button
+                onClick={handleReset}
+                className="mt-4 px-5 py-2 rounded-lg text-sm font-bold text-zinc-300 border border-zinc-700 hover:border-zinc-500 hover:text-white transition-colors"
+              >
+                Play again
+              </button>
             </div>
-            {gameOver === 'win' && totalWon > 0n && (
-              <p className="mt-2 text-xl font-bold text-green-300">
-                +{fmtAmt(totalWon)} <span className="text-green-400/60 text-sm">{bet.meta.symbol}</span>
-              </p>
-            )}
-            <button
-              onClick={handleReset}
-              className="mt-5 px-5 py-2 rounded-lg text-sm font-bold text-zinc-300 border border-zinc-700 hover:border-zinc-500 hover:text-white transition-colors"
-            >
-              Play again
-            </button>
           </div>
         )}
       </div>
 
       {/* ── Bottom controls ── */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      <div className="flex-shrink-0 p-1.5 sm:p-4">
         <div className="rounded-2xl bg-[#161616] border border-amber-400/25 overflow-hidden">
-          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y divide-amber-400/10 sm:divide-y-0 sm:divide-x sm:divide-amber-400/10">
+          <div className="grid grid-cols-2 sm:grid-cols-3 sm:divide-x sm:divide-amber-400/10">
 
             {/* BET AMOUNT */}
-            <div className="p-2.5 sm:p-4 space-y-1.5 sm:space-y-3">
+            <div className="p-2.5 sm:p-4 space-y-1.5 sm:space-y-3 border-r border-amber-400/10 sm:border-r-0">
               <p className="text-xs sm:text-sm font-black uppercase tracking-widest"
                 style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)', WebkitBackgroundClip: 'text', backgroundClip: 'text', WebkitTextFillColor: 'transparent', color: 'transparent' }}>
                 Bet Amount
@@ -570,11 +572,11 @@ export default function RocketPage() {
             </div>
 
             {/* JUMP button */}
-            <div className="p-2 sm:p-4 flex items-center justify-center">
+            <div className="col-span-2 sm:col-span-1 p-2 sm:p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
                 disabled={isProcessing || !!gameOver || isComplete || bet.isApproving || bet.allowanceLoading}
-                className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
+                className="relative w-full h-full min-h-[62px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
                   backgroundImage: 'linear-gradient(#0d0d0d, #0d0d0d), linear-gradient(20deg, #debc6e, #8c6825)',
@@ -587,7 +589,7 @@ export default function RocketPage() {
               >
                 <span className="text-2xl sm:text-5xl select-none" style={{ filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.6))' }}>🚀</span>
                 <span
-                  className="font-black text-lg sm:text-3xl tracking-[0.1em] sm:tracking-[0.15em]"
+                  className="font-black text-2xl sm:text-3xl tracking-[0.1em] sm:tracking-[0.15em]"
                   style={{
                     background: 'linear-gradient(20deg, #debc6e, #8c6825)',
                     WebkitBackgroundClip: 'text',
