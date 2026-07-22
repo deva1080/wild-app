@@ -2,17 +2,14 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { CircleDollarSign, Dices } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeDiceChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -212,7 +209,6 @@ function Die3D({ value, size = 64, glow, rolling }: { value?: number; size?: num
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DicePage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.diceGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.diceGame);
@@ -281,7 +277,10 @@ export default function DicePage() {
   const effectiveBetData = betType === 0 ? betData : betType === 6 ? betData : 0;
 
   const handlePlay = async () => {
-    if (!address) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     resultSoundHandlesRef.current.forEach((h) => h.stop(80));
     resultSoundHandlesRef.current = [];
@@ -300,35 +299,6 @@ export default function DicePage() {
     }
   };
 
-  // ── Wallet gate ──────────────────────────────────────────────────────────────
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="flex gap-6 opacity-30">
-          <DieFace value={4} size={80} />
-          <DieFace value={3} size={80} />
-        </div>
-        <h1
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85))',
-          }}
-        >
-          Dice
-        </h1>
-        <p className="text-zinc-400 text-center max-w-xs">
-          Roll two dice. Bet on the sum, doubles, high, low, even or odd.
-        </p>
-        <WalletButton />
-      </div>
-    );
-  }
-
   // ── Main layout ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
@@ -344,7 +314,6 @@ export default function DicePage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={loading} />
         <div className="flex-1 sm:hidden" aria-hidden />
         <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
@@ -696,7 +665,7 @@ export default function DicePage() {
             <div className="p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
-                disabled={loading}
+                disabled={loading || bet.isApproving || bet.allowanceLoading}
                 className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -723,7 +692,7 @@ export default function DicePage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5))',
                   }}
                 >
-                  ROLL
+                  {bet.actionLabel('ROLL')}
                 </span>
                 <span className="text-[10px] text-zinc-500 font-medium">{currentPayout}</span>
               </button>

@@ -2,17 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign, Sparkles } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeKenoChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -63,7 +60,6 @@ function decodeMask(mask: bigint): Set<number> {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function KenoPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.kenoGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.kenoGame);
@@ -203,7 +199,11 @@ export default function KenoPage() {
   };
 
   const handlePlay = async () => {
-    if (!address || numPicks === 0) return;
+    if (numPicks === 0) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     cutResultSounds();
     if (result.state !== null) {
@@ -240,38 +240,6 @@ export default function KenoPage() {
     return 'bg-zinc-800/40 text-zinc-400 border-zinc-700/60 hover:border-zinc-500 hover:text-zinc-300 font-medium';
   }
 
-  // ── Wallet gate ──────────────────────────────────────────────────────────────
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="grid grid-cols-10 gap-1 opacity-20 select-none pointer-events-none">
-          {Array.from({ length: 40 }, (_, i) => (
-            <div key={i} className="w-8 h-8 rounded-lg bg-zinc-700 flex items-center justify-center text-xs text-zinc-400 font-bold">
-              {i + 1}
-            </div>
-          ))}
-        </div>
-        <h1
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85))',
-          }}
-        >
-          Keno
-        </h1>
-        <p className="text-zinc-400 text-center max-w-xs">
-          Pick up to 10 numbers from 1–40. Match the 20 drawn balls to win.
-        </p>
-        <WalletButton />
-      </div>
-    );
-  }
-
   // ── Main layout ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
@@ -287,8 +255,6 @@ export default function KenoPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={loading} />
-
         {/* ── Reveal speed toggle ── */}
         <div className="flex items-center gap-0.5 rounded-lg border border-zinc-700/60 bg-zinc-900/70 p-0.5 ml-2 shrink-0">
           {([1, 2, 3] as const).map((lvl) => {
@@ -603,7 +569,7 @@ export default function KenoPage() {
             <div className="p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
-                disabled={loading || numPicks === 0}
+                disabled={loading || numPicks === 0 || bet.isApproving || bet.allowanceLoading}
                 className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -626,7 +592,7 @@ export default function KenoPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5))',
                   }}
                 >
-                  PLAY
+                  {bet.actionLabel('PLAY')}
                 </span>
                 {numPicks > 0 && (
                   <span className="text-[10px] text-zinc-500 font-medium">

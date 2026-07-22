@@ -2,17 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign, TrendingUp, TrendingDown } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeHiLoChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -151,7 +148,6 @@ function PlayingCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HiLoPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.hiLoGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.hiLoGame);
@@ -247,7 +243,10 @@ export default function HiLoPage() {
   }, [result.state]);
 
   const handlePlay = async () => {
-    if (!address) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     if (result.state !== null) result.close();
     setLoading(true);
@@ -264,36 +263,6 @@ export default function HiLoPage() {
     }
   };
 
-  // ── Wallet not connected ────────────────────────────────────────────────────
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="flex gap-4 opacity-30">
-          <PlayingCard value={1} size="md" />
-          <PlayingCard value={7} size="md" />
-          <PlayingCard value={13} size="md" />
-        </div>
-        <h1
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
-          }}
-        >
-          Hi-Lo
-        </h1>
-        <p className="text-zinc-400 text-center max-w-xs">
-          Pick a reference card. Bet whether the drawn card will be Higher or Lower.
-        </p>
-        <WalletButton />
-      </div>
-    );
-  }
-
   // ── Main layout ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
@@ -309,7 +278,6 @@ export default function HiLoPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={loading} />
 
         <div className="flex-1 sm:hidden" aria-hidden />
         <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
@@ -689,7 +657,7 @@ export default function HiLoPage() {
             <div className="col-span-2 sm:col-span-1 p-4 flex items-center justify-center border-t border-amber-400/10 sm:border-t-0">
               <button
                 onClick={handlePlay}
-                disabled={loading}
+                disabled={loading || bet.isApproving || bet.allowanceLoading}
                 className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -712,7 +680,7 @@ export default function HiLoPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
                   }}
                 >
-                  PLAY
+                  {bet.actionLabel('PLAY')}
                 </span>
                 <span className="text-[10px] text-zinc-500 font-medium">
                   {currentWinChance} · {currentMultiplier}

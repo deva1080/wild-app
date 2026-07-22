@@ -2,17 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { CircleDollarSign, Cherry } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeSlotChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -213,7 +210,6 @@ function Reel({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function SlotPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.slotGame);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.slotGame);
@@ -291,7 +287,10 @@ export default function SlotPage() {
   }, [showResult, packed, isWin, winLines, playRandom, playSfx]);
 
   const handlePlay = async () => {
-    if (!address) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     resultAudioKeyRef.current = null;
     if (result.state !== null) result.close();
@@ -310,42 +309,6 @@ export default function SlotPage() {
 
   const spinning = loading && !isResult;
 
-  // ── Wallet gate ──────────────────────────────────────────────────────────────
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="flex gap-2 opacity-30">
-          {[0, 1, 2].map((c) => (
-            <div key={c} className="flex flex-col gap-1.5 rounded-xl bg-zinc-900 border border-zinc-700 p-1.5">
-              {[c, c + 2, c + 4].map((s, r) => (
-                <div key={r} className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center text-3xl">
-                  {SYMBOLS[s % SYMBOLS.length].label}
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-        <h1
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85))',
-          }}
-        >
-          Slots
-        </h1>
-        <p className="text-zinc-400 text-center max-w-xs">
-          Classic 3×3 slot. Match 3 symbols across 5 paylines to win.
-        </p>
-        <WalletButton />
-      </div>
-    );
-  }
-
   // ── Main layout ────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full">
@@ -361,7 +324,6 @@ export default function SlotPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={loading} />
         <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={addresses.games.slotGame}
@@ -558,7 +520,7 @@ export default function SlotPage() {
             <div className="p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
-                disabled={loading}
+                disabled={loading || bet.isApproving || bet.allowanceLoading}
                 className="relative w-full h-full min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center justify-center gap-2 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -581,7 +543,7 @@ export default function SlotPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5))',
                   }}
                 >
-                  SPIN
+                  {bet.actionLabel('SPIN')}
                 </span>
                 <span className="text-[10px] text-zinc-500 font-medium">5 paylines</span>
               </button>

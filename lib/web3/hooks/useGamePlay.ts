@@ -4,7 +4,7 @@ import { useAccount, usePublicClient } from 'wagmi';
 import { useWriteContractBase } from './useWriteContractBase';
 import { addresses } from '../constants/addresses';
 import { abis } from '../constants/abis';
-import { Address, decodeEventLog, erc20Abi, Hex, maxUint256, ContractFunctionRevertedError, BaseError } from 'viem';
+import { Address, decodeEventLog, erc20Abi, Hex, ContractFunctionRevertedError, BaseError } from 'viem';
 
 const ERROR_HINTS: Record<string, string> = {
   GameNotLive: 'Fix: game.setGameIsLive(true)',
@@ -206,7 +206,7 @@ export function useGamePlay() {
   };
 
   /**
-   * Mode 1: Standard Play — approve(GameRouter) + playGame
+   * Mode 1: Standard Play — allowance is prepared separately by the PLAY button.
    * Returns betId and txHash. Does NOT settle — caller handles that.
    * token defaults to wildToken, referrer defaults to zero address.
    */
@@ -218,22 +218,6 @@ export function useGamePlay() {
     referrer: Address = ZERO_ADDRESS,
   ): Promise<PlayResult> => {
     if (!address || !publicClient) throw new Error('Wallet no conectada');
-
-    const allowance = await publicClient.readContract({
-      address: token,
-      abi: erc20Abi,
-      functionName: 'allowance',
-      args: [address, addresses.gameRouter],
-    });
-
-    if (allowance < amount) {
-      await writeContractAsync({
-        address: token,
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [addresses.gameRouter, maxUint256],
-      });
-    }
 
     const tx = await writeContractAsync({
       address: addresses.gameRouter,

@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Gamepad2, Scissors, Wallet } from 'lucide-react';
 import { usePathname } from 'next/navigation';
-import { formatUnits } from 'viem';
-import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { WalletButton } from '@/components/WalletButton';
+import { PaymentSelector } from '@/components/PaymentSelector';
 import { VolumeControl } from '@/components/VolumeControl';
 import { OnboardingFlow } from '@/components/OnboardingFlow';
 import { QuickSwapModal, QuickSwapVariant } from '@/components/QuickSwapModal';
@@ -15,22 +14,6 @@ import { QuickSwapModal, QuickSwapVariant } from '@/components/QuickSwapModal';
 const IconCrown = ({ className = "w-6 h-6" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14" />
-  </svg>
-);
-
-const IconGamepad = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <rect x="2" y="6" width="20" height="12" rx="2" />
-    <path d="M6 12h4m-2-2v4m10-2h.01M15 14h.01" />
-  </svg>
-);
-
-const IconFileText = ({ className = "w-5 h-5" }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-    <polyline points="14 2 14 8 20 8" />
-    <line x1="16" y1="13" x2="8" y2="13" />
-    <line x1="16" y1="17" x2="8" y2="17" />
   </svg>
 );
 
@@ -165,35 +148,10 @@ const navItems = [
   { href: '/account', label: 'My Account', icon: Wallet },
 ];
 
-const formatBalance = (bal?: unknown) => {
-  if (typeof bal === 'bigint') {
-    return (Number(bal) / 1e18).toFixed(2);
-  }
-  if (typeof bal === 'number') {
-    return (bal / 1e18).toFixed(2);
-  }
-  return '0.00';
-};
-
-// Below this amount of native ETH the user can't pay gas for Standard TX.
-const ETH_GAS_THRESHOLD = 100000000000000n; // 0.0001 ETH
-
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { address, wildBalance, usdcBalance, creditsBalance, ethBalance } = usePlayerState();
   const [swapModal, setSwapModal] = useState<QuickSwapVariant>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  // Close the mobile nav drawer whenever the route changes.
-  useEffect(() => {
-    setDrawerOpen(false);
-  }, [pathname]);
-
-  const ethStr = typeof ethBalance === 'bigint' ? Number(formatUnits(ethBalance, 18)).toFixed(4) : '0.0000';
-  const ethLow = ethBalance === undefined || (ethBalance as bigint) < ETH_GAS_THRESHOLD;
-  const usdcStr = typeof usdcBalance === 'bigint'
-    ? Number(formatUnits(usdcBalance as bigint, 6)).toLocaleString('en-US', { maximumFractionDigits: 2 })
-    : '0.00';
 
   return (
     <div className="flex h-screen bg-transparent text-zinc-100 font-sans overflow-hidden">
@@ -297,59 +255,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
 
-          <div className="hidden md:block" />
+          <div className="flex-1 flex justify-center min-w-0 px-2">
+            <PaymentSelector onManage={(target) => setSwapModal(target)} />
+          </div>
 
-          <div className="flex items-center gap-2.5">
-            {address && (
-              <>
-                {/* Native ETH (gas) — turns red when too low to pay gas */}
-                <div
-                  title={ethLow ? 'Low ETH for gas. Use Fast TX or top up ETH on Base.' : 'ETH for gas on Base'}
-                  className={`hidden xl:flex items-center gap-1.5 border rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] transition-colors ${
-                    ethLow ? 'border-red-500/40 text-red-300' : 'border-amber-400/25 text-amber-100 hover:border-amber-300/60'
-                  }`}
-                >
-                  <span className="leading-none tabular-nums">{ethStr}</span>
-                  <span className={`text-[12px] font-bold tracking-widest leading-none ${ethLow ? 'text-red-300/70' : 'text-amber-200/70'}`}>ETH</span>
-                </div>
-                <div className="hidden xl:flex items-center gap-1.5 border border-amber-400/25 hover:border-amber-300/60 transition-colors rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100">
-                  <span className="leading-none tabular-nums">{usdcStr}</span>
-                  <span className="text-[12px] font-bold tracking-widest text-amber-200/70 leading-none">USDC</span>
-                </div>
-                <button
-                  type="button"
-                  title="WILD ↔ USDC — click to swap"
-                  onClick={() => setSwapModal('wild')}
-                  className="hidden sm:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/80 hover:bg-amber-400/5 active:scale-95 transition-all rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100 cursor-pointer"
-                >
-                  <span className="leading-none">{formatBalance(wildBalance)}</span>
-                  <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">WILD</span>
-                  <span
-                    aria-hidden
-                    className="grid place-items-center w-5 h-5 rounded-md text-[#1a1205] font-black text-[13px] leading-none"
-                    style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)' }}
-                  >
-                    $
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  title="Convert to Credits — click to buy"
-                  onClick={() => setSwapModal('credits')}
-                  className="hidden lg:flex items-center gap-2 border border-amber-400/25 hover:border-amber-300/80 hover:bg-amber-400/5 active:scale-95 transition-all rounded-lg pl-3 pr-2 h-9 text-sm font-semibold bg-[#1a1a1a] text-amber-100 cursor-pointer"
-                >
-                  <span className="leading-none">{formatBalance(creditsBalance)}</span>
-                  <span className="text-[14px] font-bold tracking-widest text-amber-200/70 leading-none">CREDITS</span>
-                  <span
-                    aria-hidden
-                    className="grid place-items-center w-5 h-5 rounded-md text-[#1a1205]"
-                    style={{ background: 'linear-gradient(20deg, #debc6e, #8c6825)' }}
-                  >
-                    <IconGamepad className="w-3 h-3" />
-                  </span>
-                </button>
-              </>
-            )}
+          <div className="flex items-center gap-2.5 shrink-0">
             <WalletButton />
           </div>
         </header>

@@ -3,16 +3,13 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { CircleDollarSign, Footprints } from 'lucide-react';
 import { formatUnits } from 'viem';
-import { useAccount } from 'wagmi';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeCrashChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -127,7 +124,6 @@ function Tile({ kind, onClick }: { kind: TileKind; onClick?: () => void }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function FroggerPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.crash);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.crash);
@@ -278,7 +274,11 @@ export default function FroggerPage() {
   }, [result.state]);
 
   const handlePlay = async () => {
-    if (!address || inFlightRef.current || isProcessing || !!gameOver || isComplete) return;
+    if (inFlightRef.current || isProcessing || !!gameOver || isComplete) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     inFlightRef.current = true;
     resultHandledRef.current = false; // arm for the next result
@@ -315,27 +315,6 @@ export default function FroggerPage() {
     setAmount(baseAmountRef.current);
   };
 
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="text-7xl select-none" style={{ filter: 'drop-shadow(0 0 24px rgba(34,197,94,0.4))' }}>🐸</div>
-        <h1
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
-          }}
-        >Frogger</h1>
-        <p className="text-zinc-400 text-center max-w-xs">Pick a lily pad and hop. Watch out for the crocs — each hop is a separate bet.</p>
-        <WalletButton />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
 
@@ -360,7 +339,6 @@ export default function FroggerPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={isProcessing} />
         <div className="flex-1 sm:hidden" aria-hidden />
         <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
@@ -610,7 +588,7 @@ export default function FroggerPage() {
             <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={gameOver ? handleReset : handlePlay}
-                disabled={isProcessing || (!gameOver && isComplete)}
+                disabled={isProcessing || (!gameOver && (isComplete || bet.isApproving || bet.allowanceLoading))}
                 className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -634,7 +612,7 @@ export default function FroggerPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
                   }}
                 >
-                  {gameOver ? 'PLAY AGAIN' : 'JUMP'}
+                  {gameOver ? 'PLAY AGAIN' : bet.actionLabel('JUMP')}
                 </span>
               </button>
             </div>

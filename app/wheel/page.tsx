@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { CircleDollarSign, Disc3 } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
@@ -10,10 +9,8 @@ import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { useWheelConfig } from '@/lib/web3/hooks/useWheelConfig';
 import { encodeWheelChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -298,7 +295,6 @@ function WheelSVG({
 }
 
 export default function WheelPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.wheel);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.wheel);
@@ -431,7 +427,11 @@ export default function WheelPage() {
   }, []);
 
   const handlePlay = async () => {
-    if (!address || !config) return;
+    if (!config) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     coinRainHandleRef.current?.stop(150);
     coinRainHandleRef.current = null;
@@ -483,31 +483,6 @@ export default function WheelPage() {
     );
   }
 
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="opacity-25 pointer-events-none w-full max-w-[500px] aspect-square overflow-hidden relative">
-          <div className="absolute left-1/2" style={{ width: '180%', transform: 'translateX(-50%) translateY(45%)', bottom: '10%' }}>
-            <WheelSVG multipliers={multipliers} rotation={0} resultSegment={null} showResult={false} />
-          </div>
-        </div>
-        <h1
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
-          }}
-        >Wheel</h1>
-        <p className="text-zinc-400 text-center max-w-xs">Spin the wheel, land on a multiplier, win big.</p>
-        <WalletButton />
-      </div>
-    );
-  }
-
   const isPlaying = loading || isSpinning;
 
   return (
@@ -525,7 +500,6 @@ export default function WheelPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={isPlaying} />
         <div className="flex-1 sm:hidden" aria-hidden />
         <div className="hidden sm:block flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
@@ -713,7 +687,7 @@ export default function WheelPage() {
             <div className="p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
-                disabled={isPlaying || showFinalResult}
+                disabled={isPlaying || showFinalResult || bet.isApproving || bet.allowanceLoading}
                 className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2.5 sm:gap-3 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -746,7 +720,7 @@ export default function WheelPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
                   }}
                 >
-                  SPIN
+                  {bet.actionLabel('SPIN')}
                 </span>
               </button>
             </div>

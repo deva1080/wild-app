@@ -28,6 +28,7 @@ export function WalletButton() {
   const isNewConnect = useRef(false)
   // Tracks whether we already verified (or established) a session this page load
   const sessionVerifiedRef = useRef(false)
+  const authInFlightRef = useRef<Promise<void> | null>(null)
 
   const forceFullDisconnect = useCallback(() => {
     disconnect()
@@ -44,18 +45,31 @@ export function WalletButton() {
   }, [disconnect, authenticated, logout])
 
   const handleAuth = useCallback(async (walletAddress: string) => {
-    try {
+    if (authInFlightRef.current) {
+      await authInFlightRef.current.catch(() => {})
+      return
+    }
+
+    const authRequest = (async () => {
       const issuedAt = new Date().toISOString()
       const message = `Sign in to WildBet\n\nAddress: ${walletAddress}\nIssued At: ${issuedAt}`
       const signature = await signMessageAsync({ message })
-      await fetch('/api/auth/wallet', {
+      const response = await fetch('/api/auth/wallet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ address: walletAddress, message, signature }),
       })
+      if (!response.ok) throw new Error('Wallet authentication failed')
+    })()
+
+    authInFlightRef.current = authRequest
+    try {
+      await authRequest
     } catch (err) {
       console.error('[auth] Sign-in failed:', err)
       forceFullDisconnect()
+    } finally {
+      if (authInFlightRef.current === authRequest) authInFlightRef.current = null
     }
   }, [signMessageAsync, forceFullDisconnect])
 
@@ -69,7 +83,11 @@ export function WalletButton() {
             : (firstAccount && typeof firstAccount === 'object' && 'address' in firstAccount && typeof firstAccount.address === 'string'
                 ? firstAccount.address
                 : null)
-        if (addr) handleAuth(addr)
+        if (addr) {
+          isNewConnect.current = false
+          sessionVerifiedRef.current = true
+          void handleAuth(addr)
+        }
       },
     },
   })
@@ -168,8 +186,8 @@ export function WalletButton() {
       setSelected(null)
       if (isNewConnect.current && address) {
         isNewConnect.current = false
-        sessionVerifiedRef.current = true // handleAuth called by onSuccess, mark verified
-        handleAuth(address)
+        sessionVerifiedRef.current = true
+        void handleAuth(address)
       }
     } else {
       // Reset on disconnect so next connect re-checks

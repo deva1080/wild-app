@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { Address, Hex, erc20Abi, formatUnits, maxUint256, parseUnits } from 'viem';
-import { useAccount, usePublicClient } from 'wagmi';
+import { useCallback, useMemo, useState } from 'react';
+import { Address, Hex, erc20Abi, formatUnits, parseUnits } from 'viem';
+import { useAccount, usePublicClient, useReadContract } from 'wagmi';
 import { useWriteContractBase } from './useWriteContractBase';
 import { usePlayerState } from './usePlayerState';
 import { useGamePlay } from './useGamePlay';
@@ -12,22 +12,15 @@ import { useTxMode } from '../context/TxModeContext';
 import { useBetTokenContext } from '../context/BetTokenContext';
 import { useReferralContext } from '../context/ReferralContext';
 import { useTxActivity } from '../context/TxActivityContext';
-import { PAYMENT_METHODS, PAYMENT_METHOD_LIST } from '../constants/tokens';
+import { PAYMENT_METHODS } from '../constants/tokens';
 import { addresses } from '../constants/addresses';
-
-/**
- * Minimum allowance (in the token's own units) a payment token must have
- * against GameRouter before we bother the user with an approve prompt again.
- * Kept well above any single bet so it rarely re-triggers once approved.
- */
-function allowanceThreshold(decimals: number): bigint {
-  return decimals <= 6 ? parseUnits('1000', decimals) : parseUnits('1', decimals);
-}
+import { abis } from '../constants/abis';
 
 /** Subset of the useGameResultFlow API the controller drives. */
 interface ResultFlow {
   startPlacing: (delegated?: boolean) => void;
   betPlaced: (betId: bigint, gameAddress: Address) => void;
+  settled: (payout: bigint, totalBet: bigint, outcomes: bigint[]) => void;
   waitForSettleTx: (txHash: Hex, gameAddress?: Address) => Promise<void>;
   waitForDelegatedTx: (txHash: Hex) => Promise<void>;
 }
@@ -41,6 +34,12 @@ function safeParseUnits(value: string, decimals: number): bigint {
   } catch {
     return 0n;
   }
+}
+
+function createPreviewSeed(): bigint {
+  const words = new Uint32Array(2);
+  globalThis.crypto.getRandomValues(words);
+  return (BigInt(words[0]) << 32n) | BigInt(words[1]);
 }
 
 /**
@@ -57,51 +56,54 @@ export function useBetController(gameAddress: Address) {
   const { authorizedPlays, setupDelegatedPlay } = useDelegatedPlay();
   const { check } = usePreflightCheck();
   const { mode: txMode } = useTxMode();
-  const { method, setMethod } = useBetTokenContext();
+  const { method, setMethod, funBalance, settleFunBet } = useBetTokenContext();
   const { referrerAddress } = useReferralContext();
   const { beginTx, endTx } = useTxActivity();
 
-  /**
-   * On entering a game view, make sure every non-credits payment token has
-   * enough GameRouter allowance. Delegated ("fast tx") mode only re-approves
-   * when `authorizedPlays` is 0, which is a per-wallet flag, not per-token —
-   * so switching to a newly-added token (e.g. USDC) after already authorizing
-   * plays with WILD silently had zero allowance and every bet reverted.
-   * This proactively requests approve() for whichever token needs it.
-   */
-  const allowanceCheckedRef = useRef(false);
-  useEffect(() => {
-    if (!address || !publicClient || allowanceCheckedRef.current) return;
-    allowanceCheckedRef.current = true;
-
-    (async () => {
-      for (const pm of PAYMENT_METHOD_LIST) {
-        if (pm.useCredits) continue;
-        try {
-          const allowance = await publicClient.readContract({
-            address: pm.address,
-            abi: erc20Abi,
-            functionName: 'allowance',
-            args: [address, addresses.gameRouter],
-          });
-          if (allowance < allowanceThreshold(pm.decimals)) {
-            await writeContractAsync({
-              address: pm.address,
-              abi: erc20Abi,
-              functionName: 'approve',
-              args: [addresses.gameRouter, maxUint256],
-            });
-          }
-        } catch {
-          // User rejected or RPC hiccup — don't block the game view, next play() will retry.
-        }
-      }
-    })();
-  }, [address, publicClient, writeContractAsync]);
-
   const meta = PAYMENT_METHODS[method];
-  const balanceWei = balanceForMethod(method);
+  const balanceWei = meta.isFun ? funBalance : balanceForMethod(method);
   const decimals = meta.decimals;
+  const [isApproving, setIsApproving] = useState(false);
+  const approvalEnabled = !!address && !meta.useCredits && !meta.isFun;
+  const approvalAmount = parseUnits('10000', decimals);
+  const approvalThreshold = parseUnits('100', decimals);
+  const { data: allowance, isLoading: allowanceLoading, refetch: refetchAllowance } = useReadContract({
+    address: meta.address,
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: address ? [address, addresses.gameRouter] : undefined,
+    query: { enabled: approvalEnabled },
+  });
+  const needsApproval =
+    approvalEnabled && (allowance === undefined || allowance < approvalThreshold);
+
+  const approveSelectedToken = useCallback(async () => {
+    if (!approvalEnabled || !publicClient) return;
+    setIsApproving(true);
+    beginTx();
+    try {
+      const hash = await writeContractAsync({
+        address: meta.address,
+        abi: erc20Abi,
+        functionName: 'approve',
+        args: [addresses.gameRouter, approvalAmount],
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      await refetchAllowance();
+    } finally {
+      endTx();
+      setIsApproving(false);
+    }
+  }, [
+    approvalEnabled,
+    publicClient,
+    writeContractAsync,
+    meta.address,
+    approvalAmount,
+    refetchAllowance,
+    beginTx,
+    endTx,
+  ]);
 
   const formattedBalance = useMemo(() => {
     if (balanceWei === undefined) return '0.00';
@@ -131,7 +133,7 @@ export function useBetController(gameAddress: Address) {
       result: ResultFlow,
       onClamp?: (clampedDisplay: string) => void,
     ) => {
-      if (!address) throw new Error('Wallet no conectada');
+      if (!address && !meta.isFun) throw new Error('Wallet no conectada');
 
       const desired = safeParseUnits(amountStr, decimals);
       if (desired <= 0n) throw new Error('Ingresá un monto de apuesta válido.');
@@ -154,8 +156,40 @@ export function useBetController(gameAddress: Address) {
       const token: Address = meta.address;
       const useCredits = meta.useCredits;
 
+      if (meta.isFun) {
+        if (!publicClient) throw new Error('Public client not available');
+        result.startPlacing();
+        const previewPromise = publicClient.readContract({
+          address: addresses.gameRouter,
+          abi: abis.router,
+          functionName: 'previewGame',
+          args: [
+            gameAddress,
+            gameChoice,
+            addresses.wildToken,
+            weiAmount,
+            createPreviewSeed(),
+            false,
+          ],
+        });
+        const [previewData] = await Promise.all([
+          previewPromise,
+          new Promise((resolve) => setTimeout(resolve, 700)),
+        ]);
+        const [payout, outcomes] = previewData as [bigint, readonly bigint[]];
+        settleFunBet(weiAmount, payout);
+        result.settled(payout, weiAmount, [...outcomes]);
+        return;
+      }
+
+      if (allowance === undefined || allowance < weiAmount) {
+        throw new Error(`Primero aprobá ${meta.symbol} para jugar.`);
+      }
+
       beginTx();
       try {
+        if (!address) throw new Error('Wallet no conectada');
+
         if (txMode !== 'delegated') {
           const issues = await check(gameAddress, weiAmount, {
             token,
@@ -170,7 +204,7 @@ export function useBetController(gameAddress: Address) {
         if (txMode === 'delegated') {
           result.startPlacing(true);
           if (!authorizedPlays || authorizedPlays === 0n) {
-            await setupDelegatedPlay(100n, useCredits ? null : token);
+            await setupDelegatedPlay(100n);
           }
           const { txHash } = await requestDelegatedPlay(
             gameAddress,
@@ -201,6 +235,7 @@ export function useBetController(gameAddress: Address) {
     },
     [
       address,
+      publicClient,
       decimals,
       balanceWei,
       meta,
@@ -216,8 +251,17 @@ export function useBetController(gameAddress: Address) {
       referrerAddress,
       beginTx,
       endTx,
+      settleFunBet,
+      allowance,
     ],
   );
+
+  const actionLabel = (defaultLabel: string) => {
+    if (isApproving) return 'APPROVING…';
+    if (needsApproval) return 'APPROVE GAME';
+    if (meta.isFun) return 'FUN PLAY';
+    return defaultLabel;
+  };
 
   return {
     method,
@@ -227,6 +271,11 @@ export function useBetController(gameAddress: Address) {
     balanceWei,
     formattedBalance,
     maxAmount,
+    needsApproval,
+    allowanceLoading,
+    isApproving,
+    approveSelectedToken,
+    actionLabel,
     play,
   };
 }

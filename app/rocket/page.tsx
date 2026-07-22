@@ -3,16 +3,13 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react';
 import { CircleDollarSign, Rocket } from 'lucide-react';
 import { formatUnits } from 'viem';
-import { useAccount } from 'wagmi';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeCrashChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -106,7 +103,6 @@ function LilyPad({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function RocketPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.crash);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.crash);
@@ -209,7 +205,11 @@ export default function RocketPage() {
   }, [result.state]);
 
   const handlePlay = async () => {
-    if (!address || inFlightRef.current || isProcessing || !!gameOver || isComplete) return;
+    if (inFlightRef.current || isProcessing || !!gameOver || isComplete) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
     inFlightRef.current = true;
     resultHandledRef.current = false; // arm for the next result
@@ -244,26 +244,6 @@ export default function RocketPage() {
     setTotalWon(0n);
     setAmount(baseAmountRef.current);
   };
-
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <div className="text-7xl select-none" style={{ filter: 'drop-shadow(0 0 24px rgba(222,188,110,0.5))' }}>🚀</div>
-        <h1
-          className="text-[28px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #debc6e, #8c6825)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-          }}
-        >Rocket</h1>
-        <p className="text-zinc-400 text-center max-w-xs">Launch the rocket past each asteroid belt. Every boost is a separate bet.</p>
-        <WalletButton />
-      </div>
-    );
-  }
 
   // Rocket vertical position: currentStep=0 is ground; each successful boost
   // moves exactly one pitch up (1 pad).
@@ -307,7 +287,6 @@ export default function RocketPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={isProcessing} />
         <div className="flex-1 overflow-hidden border-l border-amber-400/20 pl-3">
           <RecentOutcomes
             gameAddress={addresses.games.crash}
@@ -594,7 +573,7 @@ export default function RocketPage() {
             <div className="p-2 sm:p-4 flex items-center justify-center">
               <button
                 onClick={handlePlay}
-                disabled={isProcessing || !!gameOver || isComplete}
+                disabled={isProcessing || !!gameOver || isComplete || bet.isApproving || bet.allowanceLoading}
                 className="relative w-full h-full min-h-[56px] sm:min-h-[90px] rounded-xl transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex flex-row sm:flex-col items-center justify-center gap-2 sm:gap-2 px-4 bg-[#0d0d0d]"
                 style={{
                   border: '3px solid transparent',
@@ -618,7 +597,7 @@ export default function RocketPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
                   }}
                 >
-                  JUMP
+                  {bet.actionLabel('JUMP')}
                 </span>
               </button>
             </div>

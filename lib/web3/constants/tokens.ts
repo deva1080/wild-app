@@ -1,7 +1,7 @@
 import { Address } from 'viem';
 import { addresses } from './addresses';
 
-export type PaymentMethodKey = 'WILD' | 'USDC' | 'CREDITS';
+export type PaymentMethodKey = 'WILD' | 'USDC' | 'CREDITS' | 'FUN';
 
 export interface PaymentMethod {
   key: PaymentMethodKey;
@@ -15,6 +15,8 @@ export interface PaymentMethod {
   decimals: number;
   /** Whether the bet is paid from Game Credits instead of a token transfer. */
   useCredits: boolean;
+  /** Whether this is the local, no-wallet demo balance. */
+  isFun?: boolean;
 }
 
 export const PAYMENT_METHODS: Record<PaymentMethodKey, PaymentMethod> = {
@@ -43,10 +45,21 @@ export const PAYMENT_METHODS: Record<PaymentMethodKey, PaymentMethod> = {
     decimals: 18,
     useCredits: true,
   },
+  FUN: {
+    key: 'FUN',
+    label: 'FUN Play',
+    symbol: 'FUN',
+    // Preview calls use WILD's configured bet limits, but never move funds.
+    address: addresses.wildToken,
+    decimals: 18,
+    useCredits: false,
+    isFun: true,
+  },
 };
 
 export const PAYMENT_METHOD_LIST: PaymentMethod[] = [
   PAYMENT_METHODS.WILD,
   PAYMENT_METHODS.USDC,
   PAYMENT_METHODS.CREDITS,
+  PAYMENT_METHODS.FUN,
 ];

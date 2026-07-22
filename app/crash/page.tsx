@@ -2,17 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Rocket, CircleDollarSign } from 'lucide-react';
-import { useAccount } from 'wagmi';
 import { formatUnits } from 'viem';
 import { usePlayerState } from '@/lib/web3/hooks/usePlayerState';
 import { extractRevertReason } from '@/lib/web3/hooks/useGamePlay';
 import { useBetController } from '@/lib/web3/hooks/useBetController';
 import { encodeCrashChoice } from '@/lib/web3/utils/encoders';
 import { addresses } from '@/lib/web3/constants/addresses';
-import { WalletButton } from '@/components/WalletButton';
 import { PendingBetBanner } from '@/components/PendingBetBanner';
 import { useGameResultFlow } from '@/components/GameResultModal';
-import { PaymentSelector } from '@/components/PaymentSelector';
 import { FastTxToggle } from '@/components/FastTxToggle';
 import { RecentOutcomes } from '@/components/RecentOutcomes';
 import { useGameAudio } from '@/lib/sound/useGameAudio';
@@ -302,7 +299,6 @@ function CrashChart({
 }
 
 export default function CrashPage() {
-  const { address } = useAccount();
   const { pendingBetId: contractPendingBet, refetchAll } = usePlayerState(addresses.games.crash);
   const result = useGameResultFlow();
   const bet = useBetController(addresses.games.crash);
@@ -387,7 +383,10 @@ export default function CrashPage() {
 
   // ── Play handler ─────────────────────────────────────────────────────────
   const handlePlay = async () => {
-    if (!address) return;
+    if (bet.needsApproval) {
+      try { await bet.approveSelectedToken(); } catch (e: unknown) { result.error(extractRevertReason(e)); }
+      return;
+    }
     playClick();
 
     // Reset animation state explicitly — React 18 batches result.close() +
@@ -412,26 +411,6 @@ export default function CrashPage() {
       setLoading(false);
     }
   };
-
-  if (!address) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6">
-        <h1 
-          className="text-[42px] font-black uppercase tracking-tight"
-          style={{
-            background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-            WebkitBackgroundClip: 'text',
-            backgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            color: 'transparent',
-            filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.85)) drop-shadow(0 0 8px rgba(0,0,0,0.6))',
-          }}
-        >Crash</h1>
-        <p className="text-zinc-400 text-center max-w-xs">Set your target multiplier. If the crash goes above it, you win.</p>
-        <WalletButton />
-      </div>
-    );
-  }
 
   // Determine center display
   const isIdle = !loading && !animating && !showFinalResult && resultPhase === 'idle';
@@ -464,8 +443,6 @@ export default function CrashPage() {
 
       {/* ── Top bar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 sm:py-3 border-b border-amber-400/20 bg-[#0d0d0d] flex-shrink-0">
-        <PaymentSelector disabled={isPlaying} />
-
         {/* ── Speed toggle ── */}
         <div className="flex items-center gap-0.5 rounded-lg border border-zinc-700/60 bg-zinc-900/70 p-0.5 ml-2 shrink-0">
           {([1, 2, 3] as const).map((lvl) => {
@@ -473,7 +450,7 @@ export default function CrashPage() {
             return (
               <button
                 key={lvl}
-                disabled={isPlaying}
+                disabled={isPlaying || bet.isApproving || bet.allowanceLoading}
                 onClick={() => { playClick(); setAnimSpeed(lvl); animSpeedRef.current = lvl; }}
                 className={`px-2 py-1 rounded-md text-[11px] font-black tracking-tight transition-all disabled:cursor-not-allowed ${
                   active
@@ -734,7 +711,7 @@ export default function CrashPage() {
                     filter: 'drop-shadow(0 0 10px rgba(222,188,110,0.5)) drop-shadow(0 0 24px rgba(222,188,110,0.25))',
                   }}
                 >
-                  LAUNCH
+                  {bet.actionLabel('LAUNCH')}
                 </span>
               </button>
             </div>
