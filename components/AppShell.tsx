@@ -237,29 +237,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Header */}
-        <header className="h-16 border-b border-amber-400/20 bg-[#0d0d0d] text-white flex items-center justify-between px-6 flex-shrink-0">
+        <header className="h-16 border-b border-amber-400/20 bg-[#0d0d0d] text-white grid grid-cols-[40px_minmax(0,1fr)_40px] md:grid-cols-[1fr_auto_1fr] items-center gap-2 px-3 sm:px-4 md:px-6 flex-shrink-0">
           {/* Mobile logo */}
-          <Link href="/" className="flex md:hidden items-center gap-2">
+          <Link href="/" aria-label="Wildcard Games home" className="flex md:hidden items-center justify-start">
             <IconCrown className="w-6 h-6 text-amber-300" />
-            <span
-              className="font-black tracking-wider"
-              style={{
-                background: 'linear-gradient(20deg, #f1f1f1, #b5b1ac)',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                color: 'transparent',
-              }}
-            >
-              WILDCARD
-            </span>
           </Link>
+          <div className="hidden md:block" aria-hidden />
 
-          <div className="flex-1 flex justify-center min-w-0 px-2">
+          <div className="flex justify-center min-w-0">
             <PaymentSelector onManage={(target) => setSwapModal(target)} />
           </div>
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center justify-end min-w-0">
             <WalletButton />
           </div>
         </header>

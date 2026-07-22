@@ -51,7 +51,13 @@ export function PaymentSelector({
   const openDropdown = () => {
     if (!btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
-    setPos({ top: r.bottom + 6, left: r.left, width: Math.max(r.width, 220) });
+    const viewportPadding = 12;
+    const width = Math.min(Math.max(r.width, 240), window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(viewportPadding, r.left),
+      window.innerWidth - width - viewportPadding,
+    );
+    setPos({ top: r.bottom + 6, left, width });
     setOpen(true);
   };
 
@@ -79,7 +85,7 @@ export function PaymentSelector({
     <div
       ref={dropRef}
       style={{ position: 'fixed', top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999 }}
-      className="rounded-xl border border-amber-400/30 bg-[#0d0d0d] shadow-2xl overflow-hidden"
+      className="h-[280px] flex flex-col rounded-xl border border-amber-400/30 bg-[#0d0d0d] shadow-2xl overflow-hidden"
     >
       <p className="px-3 pt-3 pb-1 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Play with</p>
       {PAYMENT_METHOD_LIST.map((m) => {
@@ -91,7 +97,7 @@ export function PaymentSelector({
         return (
           <div
             key={m.key}
-            className={`flex items-center transition-colors ${
+            className={`flex flex-1 items-center transition-colors ${
               active ? 'bg-amber-400/10 text-amber-200' : 'text-zinc-300 hover:bg-[#161616]'
             }`}
           >
@@ -144,20 +150,27 @@ export function PaymentSelector({
   ) : null;
 
   return (
-    <div className="relative shrink-0" data-tour="payment-selector">
+    <div
+      className="relative shrink-0 w-[clamp(160px,50vw,220px)] sm:w-[240px] md:w-[260px] lg:w-[280px] xl:w-[320px]"
+      data-tour="payment-selector"
+    >
       <button
         ref={btnRef}
         type="button"
         disabled={locked}
         onClick={() => (open ? setOpen(false) : openDropdown())}
-        className="flex items-center gap-2 max-w-[190px] sm:max-w-none px-3 py-1.5 rounded-lg text-sm font-black tracking-wide text-amber-100 bg-[#161616] border border-amber-400/30 hover:border-amber-400/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center justify-between gap-2 w-full h-12 px-2.5 sm:px-4 rounded-xl text-sm font-black tracking-wide text-amber-100 bg-[#161616] border border-amber-400/30 hover:border-amber-400/60 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <span className="text-amber-300">{ICONS[current.key]}</span>
-        <span className="truncate">{current.label}</span>
-        <span className="text-[11px] font-bold text-zinc-500 tabular-nums">
-          {fmt(currentBalance, current.decimals)}
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-amber-300 shrink-0">{ICONS[current.key]}</span>
+          <span className="truncate">{current.label}</span>
         </span>
-        <ChevronDown className={`w-3.5 h-3.5 text-amber-200/70 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="flex items-center gap-1.5 shrink-0">
+          <span className="text-[11px] font-bold text-zinc-500 tabular-nums">
+            {fmt(currentBalance, current.decimals)}
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 text-amber-200/70 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
       </button>
 
       {typeof window !== 'undefined' && createPortal(dropdown, document.body)}

@@ -250,17 +250,18 @@ export function WalletButton() {
       <div ref={dropdownRef} className="relative">
         <button
           type="button"
+          aria-label="Open account menu"
           onClick={() => setDropdownOpen((v) => !v)}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-400/35 bg-[#111722] text-sm font-medium text-amber-100 hover:bg-[#151d2a] transition-colors"
+          className="flex items-center justify-center md:justify-start gap-2 w-9 h-9 md:w-auto md:h-auto md:px-3 md:py-2 rounded-lg border border-amber-400/35 bg-[#111722] text-sm font-medium text-amber-100 hover:bg-[#151d2a] transition-colors"
         >
-          <span className="text-amber-50">{shortAddress}</span>
+          <span className="hidden md:inline text-amber-50">{shortAddress}</span>
           <span className="flex items-center justify-center w-6 h-6 rounded-full bg-[#0d1118] text-amber-300/90">
             <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="8" r="4" />
               <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
             </svg>
           </span>
-          <svg xmlns="http://www.w3.org/2000/svg" className={`w-3 h-3 text-amber-200/80 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg xmlns="http://www.w3.org/2000/svg" className={`hidden md:block w-3 h-3 text-amber-200/80 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="m6 9 6 6 6-6" />
           </svg>
         </button>
@@ -350,10 +351,15 @@ export function WalletButton() {
     <>
       <button
         type="button"
+        aria-label="Connect wallet"
         onClick={() => setOpen(true)}
-        className="px-4 py-2 rounded-lg border border-amber-400/40 bg-amber-400/15 text-amber-100 text-sm font-medium hover:bg-amber-400/25 transition-colors"
+        className="flex items-center justify-center w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2 rounded-lg border border-amber-400/40 bg-amber-400/15 text-amber-100 text-sm font-medium hover:bg-amber-400/25 transition-colors"
       >
-        Connect Wallet
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 md:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+        </svg>
+        <span className="hidden md:inline">Connect Wallet</span>
       </button>
 
       {open && (
